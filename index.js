@@ -6,17 +6,38 @@ const express = require("express");
 const app = express();
 const pool = require("./db");
 const studentRoutes = require("./routes/studentRoutes");
+const classRoutes = require("./routes/classRoutes");
+const sectionRoutes = require("./routes/sectionRoutes");
+const examRoutes = require("./routes/examRoutes");
+const subjectRoutes = require("./routes/subjectRoutes");
 const activityRoutes = require("./routes/activityRoutes");
+const markRoutes = require("./routes/markRoutes");
+const reportCardRoutes = require("./routes/reportCardRoutes");
+const promotionRoutes = require("./routes/promotionRoutes");
 const expenseRoutes = require("./routes/expenseRoutes");
 const dashboardRoutes = require("./routes/dashboardRoutes");
 const cashbookRoutes = require("./routes/cashbookRoutes");
 const stockRoutes = require("./routes/stockRoutes");
 const quotationRoutes = require("./routes/quotationRoutes");
 const cors = require("cors");
+const { validateRegister } = require("./middleware/validation");
+const {
+  authenticate,
+  isAdmin,
+  isTeacher
+} = require("./middleware/auth");
+
 
 app.use(cors());
 app.use(express.json());
 app.use("/api/students", studentRoutes);
+app.use("/api/classes", classRoutes);
+app.use("/api/sections", sectionRoutes);
+app.use("/api/subjects", subjectRoutes);
+app.use("/api/exams", examRoutes);
+app.use("/api/marks", markRoutes);
+app.use("/api/report-card", reportCardRoutes);
+app.use("/api/promotions", promotionRoutes);
 app.use("/api/activities", activityRoutes);
 app.use("/api/expenses", expenseRoutes);
 app.use("/api/dashboard", dashboardRoutes);
@@ -24,30 +45,6 @@ app.use("/api/cashbook", cashbookRoutes);
 app.use("/api/stock", stockRoutes);
 app.use("/api/quotations", quotationRoutes);
 
-
-// 👇 ADD THIS HERE
-const authenticate = (req, res, next) => {
-  const authHeader = req.headers["authorization"];
-
-  if (!authHeader) return res.status(401).send("No token");
-
-  const token = authHeader.split(" ")[1];
-
-  try {
-    const user = jwt.verify(token, process.env.JWT_SECRET);
-    req.user = user;
-    next();
-  } catch (err) {
-    return res.status(403).send("Invalid token");
-  }
-};
-
-const isAdmin = (req, res, next) => {
-  if (req.user.role !== "admin") {
-    return res.status(403).send("Access denied");
-  }
-  next();
-};
 app.get("/", (req, res) => {
   res.send("ERP Backend Running 🚀");
 });
@@ -63,7 +60,7 @@ app.get("/test-db", async (req, res) => {
 });
 
 // REGISTER
-app.post("/register", async (req, res) => {
+app.post("/register", validateRegister, async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
 const existingUser = await pool.query(
@@ -115,9 +112,11 @@ app.post("/login", async (req, res) => {
       { 
         id: user.rows[0].id,
         role: user.rows[0].role
-
       },
-      process.env.JWT_SECRET
+      process.env.JWT_SECRET,
+      {
+        expiresIn: "7d"
+      }
     );
 
     res.json({
@@ -134,13 +133,7 @@ app.post("/login", async (req, res) => {
     res.status(500).send("Login error");
   }
 });
-// TEACHER ONLY
-const isTeacher = (req, res, next) => {
-  if (req.user.role !== "teacher") {
-    return res.status(403).send("Only teachers allowed");
-  }
-  next();
-};
+
 
 // MARK ATTENDANCE
 app.post("/attendance", authenticate, isTeacher, async (req, res) => {
