@@ -20,6 +20,7 @@ const cashbookRoutes = require("./routes/cashbookRoutes");
 const stockRoutes = require("./routes/stockRoutes");
 const quotationRoutes = require("./routes/quotationRoutes");
 const cors = require("cors");
+const attendanceRoutes = require("./routes/attendanceRoutes");
 const { validateRegister } = require("./middleware/validation");
 const {
   authenticate,
@@ -43,6 +44,7 @@ app.use("/api/expenses", expenseRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/cashbook", cashbookRoutes);
 app.use("/api/stock", stockRoutes);
+app.use("/attendance", attendanceRoutes);
 app.use("/api/quotations", quotationRoutes);
 
 app.get("/", (req, res) => {
@@ -131,40 +133,6 @@ app.post("/login", async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).send("Login error");
-  }
-});
-
-
-// MARK ATTENDANCE
-app.post("/attendance", authenticate, isTeacher, async (req, res) => {
-  try {
-    const { student_id, date, period, status } = req.body;
-const existingAttendance = await pool.query(
-
-  `
-  SELECT * FROM attendance
-  WHERE student_id = $1
-  AND date = $2
-  AND period = $3
-  `,
-
-  [student_id, date, period]
-
-);
-
-if (existingAttendance.rows.length > 0) {
-  return res.status(400).send("Attendance already marked");
-}
-    const result = await pool.query(
-      "INSERT INTO attendance (student_id, teacher_id, date, period, status, school_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
-      [student_id, req.user.id, date, period, status, 1]
-    );
-
-    res.json(result.rows[0]);
-
-  } catch (err) {
-    console.error(err);
-    res.status(500).send("Error marking attendance");
   }
 });
 
