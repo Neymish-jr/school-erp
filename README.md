@@ -20,3 +20,23 @@ A multi-school ERP system for district-level school management.
 - AI Chatbot
 - Hindi + English Support
 - UDISE+ Integration
+
+
+# School ERP Backend
+
+Modules Completed:
+
+- Authentication
+- Students
+- Teachers
+- Activities
+- Expenses
+- Quotations
+- Dashboard
+- Stock Register
+- Upload System
+
+Tech Stack:
+- Node.js
+- Express.js
+- PostgreSQL

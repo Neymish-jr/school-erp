@@ -1,0 +1,20 @@
+STUDENTS
+GET /api/students
+POST /api/students
+
+ACTIVITIES
+GET /api/activities
+POST /api/activities
+PUT /api/activities/:id/status
+
+EXPENSES
+POST /api/expenses
+PUT /api/expenses/:id/verify-payment
+
+QUOTATIONS
+GET /api/quotations
+POST /api/quotations
+PUT /api/quotations/:id/select
+
+DASHBOARD
+GET /api/dashboard

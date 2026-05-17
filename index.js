@@ -1,10 +1,30 @@
+require("dotenv").config();
+
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const express = require("express");
 const app = express();
 const pool = require("./db");
+const studentRoutes = require("./routes/studentRoutes");
+const activityRoutes = require("./routes/activityRoutes");
+const expenseRoutes = require("./routes/expenseRoutes");
+const dashboardRoutes = require("./routes/dashboardRoutes");
+const cashbookRoutes = require("./routes/cashbookRoutes");
+const stockRoutes = require("./routes/stockRoutes");
+const quotationRoutes = require("./routes/quotationRoutes");
+const cors = require("cors");
 
+app.use(cors());
 app.use(express.json());
+app.use("/api/students", studentRoutes);
+app.use("/api/activities", activityRoutes);
+app.use("/api/expenses", expenseRoutes);
+app.use("/api/dashboard", dashboardRoutes);
+app.use("/api/cashbook", cashbookRoutes);
+app.use("/api/stock", stockRoutes);
+app.use("/api/quotations", quotationRoutes);
+
+
 // 👇 ADD THIS HERE
 const authenticate = (req, res, next) => {
   const authHeader = req.headers["authorization"];
@@ -14,7 +34,7 @@ const authenticate = (req, res, next) => {
   const token = authHeader.split(" ")[1];
 
   try {
-    const user = jwt.verify(token, "secretkey");
+    const user = jwt.verify(token, process.env.JWT_SECRET);
     req.user = user;
     next();
   } catch (err) {
@@ -46,7 +66,14 @@ app.get("/test-db", async (req, res) => {
 app.post("/register", async (req, res) => {
   try {
     const { name, email, password, role } = req.body;
+const existingUser = await pool.query(
+  "SELECT * FROM users WHERE email = $1",
+  [email]
+);
 
+if (existingUser.rows.length > 0) {
+  return res.status(400).send("Email already exists");
+}
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const result = await pool.query(
@@ -85,8 +112,12 @@ app.post("/login", async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: user.rows[0].id, role: user.rows[0].role },
-      "secretkey"
+      { 
+        id: user.rows[0].id,
+        role: user.rows[0].role
+
+      },
+      process.env.JWT_SECRET
     );
 
     res.json({
@@ -115,7 +146,22 @@ const isTeacher = (req, res, next) => {
 app.post("/attendance", authenticate, isTeacher, async (req, res) => {
   try {
     const { student_id, date, period, status } = req.body;
+const existingAttendance = await pool.query(
 
+  `
+  SELECT * FROM attendance
+  WHERE student_id = $1
+  AND date = $2
+  AND period = $3
+  `,
+
+  [student_id, date, period]
+
+);
+
+if (existingAttendance.rows.length > 0) {
+  return res.status(400).send("Attendance already marked");
+}
     const result = await pool.query(
       "INSERT INTO attendance (student_id, teacher_id, date, period, status, school_id) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *",
       [student_id, req.user.id, date, period, status, 1]
@@ -132,8 +178,18 @@ app.post("/attendance", authenticate, isTeacher, async (req, res) => {
 app.get("/admin-data", authenticate, isAdmin, (req, res) => {
   res.send("Only admin can see this");
 });
+app.use((err, req, res, next) => {
 
+  console.error(err.stack);
+
+  res.status(500).json({
+    error: "Something went wrong"
+  });
+
+});
 // ✅ ALWAYS LAST
-app.listen(3000, () => {
-  console.log("Server running on http://localhost:3000");
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
 });
