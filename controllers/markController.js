@@ -1,8 +1,15 @@
 const pool = require("../db");
+const markSchema = require("../validators/markValidator");
 
 // ADD MARKS
 const createMark = async (req, res) => {
+const { error } = markSchema.validate(req.body);
 
+if (error) {
+  return res.status(400).json({
+    error: error.details[0].message
+  });
+}
   try {
 
     const {
@@ -10,23 +17,9 @@ const createMark = async (req, res) => {
       subject_id,
       exam_id,
       marks_obtained,
-      max_marks,
-      teacher_id
+      total_marks,
     } = req.body;
-
-    // VALIDATION
-    if (marks_obtained > max_marks) {
-      return res.status(400).send(
-        "Marks cannot exceed max marks"
-      );
-    }
-
-    if (marks_obtained < 0) {
-      return res.status(400).send(
-        "Invalid marks"
-      );
-    }
-
+    
     const result = await pool.query(
       `
       INSERT INTO marks
@@ -35,7 +28,7 @@ const createMark = async (req, res) => {
         subject_id,
         exam_id,
         marks_obtained,
-        max_marks,
+        total_marks,
         teacher_id
       )
       VALUES ($1, $2, $3, $4, $5, $6)
@@ -46,8 +39,8 @@ const createMark = async (req, res) => {
         subject_id,
         exam_id,
         marks_obtained,
-        max_marks,
-        teacher_id
+        total_marks,
+        req.user.id
       ]
     );
 

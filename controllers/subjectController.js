@@ -1,8 +1,15 @@
 const pool = require("../db");
+const subjectSchema = require("../validators/subjectValidator");
 
 // CREATE SUBJECT
 const createSubject = async (req, res) => {
+const { error } = subjectSchema.validate(req.body);
 
+if (error) {
+  return res.status(400).json({
+    error: error.details[0].message
+  });
+}
   try {
 
     const {
@@ -12,15 +19,6 @@ const createSubject = async (req, res) => {
       teacher_id
     } = req.body;
 
-    if (
-      !subject_name ||
-      !subject_code ||
-      !class_id
-    ) {
-      return res.status(400).json({
-        error: "Subject name, subject code and class ID are required"
-      });
-    }
 
     const result = await pool.query(
       `

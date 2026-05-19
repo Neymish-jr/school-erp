@@ -1,7 +1,15 @@
 const pool = require("../db");
+const attendanceSchema = require("../validators/attendanceValidator");
 
 // MARK ATTENDANCE
 const markAttendance = async (req, res) => {
+const { error } = attendanceSchema.validate(req.body);
+
+if (error) {
+  return res.status(400).json({
+    error: error.details[0].message
+  });
+}
 
   try {
 
@@ -70,7 +78,72 @@ const markAttendance = async (req, res) => {
   }
 
 };
+const getAttendance = async (req, res) => {
+
+  try {
+
+    const result = await pool.query(
+      `
+      SELECT
+        attendance.*,
+        students.name
+      FROM attendance
+      JOIN students
+      ON attendance.student_id = students.id
+
+      ORDER BY date DESC
+      `
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).json({
+      success: false,
+      message: "Error fetching attendance"
+    });
+
+  }
+
+};
+const getStudentAttendance = async (req, res) => {
+
+  try {
+
+    const { id } = req.params;
+
+    const result = await pool.query(
+      `
+      SELECT *
+      FROM attendance
+
+      WHERE student_id = $1
+
+      ORDER BY date DESC
+      `,
+      [id]
+    );
+
+    res.json(result.rows);
+
+  } catch (err) {
+
+    console.error(err);
+
+    res.status(500).json({
+      success: false,
+      message: "Error fetching student attendance"
+    });
+
+  }
+
+};
 
 module.exports = {
-  markAttendance
+  markAttendance,
+  getAttendance,
+  getStudentAttendance
 };

@@ -1,25 +1,23 @@
 const pool = require("../db");
+const classSchema = require("../validators/classValidator");
 
 // CREATE CLASS
 const createClass = async (req, res) => {
 
   try {
 
-    const { class_name } = req.body;
+    const { error } = classSchema.validate(req.body);
 
-    if (!class_name) {
+    if (error) {
       return res.status(400).json({
-        error: "Class name is required"
+        error: error.details[0].message
       });
     }
 
+    const { class_name } = req.body;
+
     const result = await pool.query(
-      `
-      INSERT INTO classes
-      (class_name, school_id)
-      VALUES ($1, $2)
-      RETURNING *
-      `,
+      "INSERT INTO classes (class_name, school_id) VALUES ($1, $2) RETURNING *",
       [class_name, 1]
     );
 

@@ -32,7 +32,7 @@ const getReportCard = async (req, res) => {
         subjects.subject_name,
         exams.exam_name,
         marks.marks_obtained,
-        marks.max_marks
+        marks.total_marks
 
       FROM marks
 
@@ -83,13 +83,12 @@ const getReportCard = async (req, res) => {
       totalObtained +=
         Number(mark.marks_obtained);
 
-      totalMax +=
-        Number(mark.max_marks);
+      totalMax += Number(mark.total_marks);
 
       let grade = "F";
 
       const percentage =
-        (mark.marks_obtained / mark.max_marks) * 100;
+        (mark.marks_obtained / mark.total_marks) * 100
 
       if (percentage >= 90) grade = "A+";
       else if (percentage >= 75) grade = "A";
@@ -100,7 +99,7 @@ const getReportCard = async (req, res) => {
         subject: mark.subject_name,
         exam: mark.exam_name,
         marks_obtained: mark.marks_obtained,
-        max_marks: mark.max_marks,
+        total_marks: mark.total_marks,
         grade
       };
 
@@ -112,17 +111,28 @@ const getReportCard = async (req, res) => {
         : (
             (totalObtained / totalMax) * 100
           ).toFixed(2);
+    const hasFailedSubject = subjects.some(
+      subject => {
 
+        const percentage =
+          (subject.marks_obtained / subject.total_marks) * 100;
+
+        return percentage < 40;
+
+      }
+    );
     const result =
-      overallPercentage >= 40
-        ? "Pass"
-        : "Fail";
+      hasFailedSubject
+        ? "Fail"
+        : "Pass";
 
     res.json({
 
       student: {
         id: student.id,
-        name: student.name
+        name: student.name,
+        student_class: student.student_class,
+        section: student.section
       },
 
       attendance_percentage:
@@ -133,7 +143,7 @@ const getReportCard = async (req, res) => {
       total_marks_obtained:
         totalObtained,
 
-      total_max_marks:
+      total_marks:
         totalMax,
 
       percentage:

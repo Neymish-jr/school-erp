@@ -2,45 +2,93 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 
-router.get("/", async (req, res) => {
+const {
+  authenticate,
+  isAdmin
+} = require("../middleware/auth");
 
-  try {
+router.get(
+  "/",
+  authenticate,
+  isAdmin,
 
-    const students = await pool.query(
-      "SELECT COUNT(*) FROM students"
-    );
+  async (req, res) => {
 
-    const teachers = await pool.query(
-      "SELECT COUNT(*) FROM teachers"
-    );
+    try {
 
-    const activities = await pool.query(
-      "SELECT COUNT(*) FROM activities"
-    );
+      const students = await pool.query(
+        `
+        SELECT COUNT(*) FROM students
+        `
+      );
 
-    const expenses = await pool.query(
-      "SELECT COUNT(*) FROM expenses"
-    );
+      const teachers = await pool.query(
+        `
+        SELECT COUNT(*) FROM users
+        WHERE role = 'teacher'
+        `
+      );
 
-    res.json({
+      const activities = await pool.query(
+        `
+        SELECT COUNT(*) FROM activities
+        `
+      );
 
-      total_students: students.rows[0].count,
+      const expenses = await pool.query(
+        `
+        SELECT COALESCE(SUM(amount), 0)
+        FROM expenses
+        `
+      );
 
-      total_teachers: teachers.rows[0].count,
+      const attendance = await pool.query(
+        `
+        SELECT
+          COUNT(*) FILTER (
+            WHERE status = 'Present'
+          ) * 100.0 /
+          NULLIF(COUNT(*), 0)
+          AS attendance_percentage
 
-      total_activities: activities.rows[0].count,
+        FROM attendance
+        `
+      );
 
-      total_expenses: expenses.rows[0].count
+      res.json({
 
-    });
+        total_students:
+          Number(students.rows[0].count),
 
-  } catch (err) {
+        total_teachers:
+          Number(teachers.rows[0].count),
 
-    console.error(err);
-    res.status(500).send("Dashboard error");
+        total_activities:
+          Number(activities.rows[0].count),
+
+        total_expenses:
+          Number(expenses.rows[0].coalesce),
+
+        attendance_percentage:
+          Number(
+            attendance.rows[0]
+              .attendance_percentage || 0
+          ).toFixed(2)
+
+      });
+
+    } catch (err) {
+
+      console.error(err);
+
+      res.status(500).json({
+        success: false,
+        message: "Dashboard error"
+      });
+
+    }
 
   }
-
-});
+);
 
 module.exports = router;

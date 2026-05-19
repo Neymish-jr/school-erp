@@ -1,7 +1,15 @@
 const pool = require("../db");
+const sectionSchema = require("../validators/sectionValidator");
 
 // CREATE SECTION
 const createSection = async (req, res) => {
+const { error } = sectionSchema.validate(req.body);
+
+if (error) {
+  return res.status(400).json({
+    error: error.details[0].message
+  });
+}
 
   try {
 
@@ -10,12 +18,6 @@ const createSection = async (req, res) => {
       class_id,
       class_teacher_id
     } = req.body;
-
-    if (!section_name || !class_id) {
-      return res.status(400).json({
-        error: "Section name and class ID are required"
-      });
-    }
 
     const result = await pool.query(
       `

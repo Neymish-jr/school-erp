@@ -1,5 +1,7 @@
 require("dotenv").config();
 
+const helmet = require("helmet");
+const rateLimit = require("express-rate-limit");
 const jwt = require("jsonwebtoken");
 const bcrypt = require("bcrypt");
 const express = require("express");
@@ -22,16 +24,29 @@ const quotationRoutes = require("./routes/quotationRoutes");
 const cors = require("cors");
 const attendanceRoutes = require("./routes/attendanceRoutes");
 const { validateRegister } = require("./middleware/validation");
+const uploadRoutes = require("./routes/uploadRoutes");
 const {
   authenticate,
   isAdmin,
   isTeacher
 } = require("./middleware/auth");
 
+const errorHandler = require("./middleware/errorHandler");
+const swaggerUi = require("swagger-ui-express");
+const swaggerSpecs = require("./swagger");
 
 app.use(cors());
+app.use(helmet());
+
+const limiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100
+});
+
+app.use(limiter);
 app.use(express.json());
 app.use("/api/students", studentRoutes);
+app.use("/api/upload", uploadRoutes);
 app.use("/api/classes", classRoutes);
 app.use("/api/sections", sectionRoutes);
 app.use("/api/subjects", subjectRoutes);
@@ -44,8 +59,13 @@ app.use("/api/expenses", expenseRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/cashbook", cashbookRoutes);
 app.use("/api/stock", stockRoutes);
-app.use("/attendance", attendanceRoutes);
+app.use("/api/attendance", attendanceRoutes);
 app.use("/api/quotations", quotationRoutes);
+app.use(
+  "/api-docs",
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpecs)
+);
 
 app.get("/", (req, res) => {
   res.send("ERP Backend Running 🚀");
@@ -139,15 +159,9 @@ app.post("/login", async (req, res) => {
 app.get("/admin-data", authenticate, isAdmin, (req, res) => {
   res.send("Only admin can see this");
 });
-app.use((err, req, res, next) => {
 
-  console.error(err.stack);
+app.use(errorHandler);
 
-  res.status(500).json({
-    error: "Something went wrong"
-  });
-
-});
 // ✅ ALWAYS LAST
 const PORT = process.env.PORT || 3000;
 

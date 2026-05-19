@@ -1,7 +1,15 @@
 const pool = require("../db");
+const examSchema = require("../validators/examValidator");
 
 // CREATE EXAM
 const createExam = async (req, res) => {
+const { error } = examSchema.validate(req.body);
+
+if (error) {
+  return res.status(400).json({
+    error: error.details[0].message
+  });
+}
 
   try {
 
