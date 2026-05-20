@@ -1,5 +1,7 @@
 const express = require("express");
 const router = express.Router();
+const asyncHandler = require("../middleware/asyncHandler");
+const { authenticate } = require("../middleware/auth");
 
 const {
   createSection,
@@ -31,7 +33,7 @@ const {
  *         description: Section created successfully
  */
 
-router.post("/", createSection);
+router.post("/", authenticate, asyncHandler(createSection));
 
 /**
  * @swagger
@@ -44,6 +46,6 @@ router.post("/", createSection);
  *       200:
  *         description: Sections fetched successfully
  */
-router.get("/", getSections);
+router.get("/", authenticate, asyncHandler(getSections));
 
 module.exports = router;

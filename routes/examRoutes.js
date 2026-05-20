@@ -1,13 +1,15 @@
 const express = require("express");
 const router = express.Router();
+const asyncHandler = require("../middleware/asyncHandler");
+const { authenticate } = require("../middleware/auth");
 
 const {
   createExam,
   getExams
 } = require("../controllers/examController");
 
-router.post("/", createExam);
+router.post("/", authenticate, asyncHandler(createExam));
 
-router.get("/", getExams);
+router.get("/", authenticate, asyncHandler(getExams));
 
 module.exports = router;

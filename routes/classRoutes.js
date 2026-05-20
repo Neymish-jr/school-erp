@@ -1,5 +1,7 @@
 const express = require("express");
 const router = express.Router();
+const asyncHandler = require("../middleware/asyncHandler");
+const { authenticate } = require("../middleware/auth");
 
 const {
   getClasses,
@@ -26,7 +28,7 @@ const {
  *       200:
  *         description: Class created successfully
  */
-router.post("/", createClass);
+router.post("/", authenticate, asyncHandler(createClass));
 
 /**
  * @swagger
@@ -40,6 +42,6 @@ router.post("/", createClass);
  *         description: Classes fetched successfully
  */
 
-router.get("/", getClasses);
+router.get("/", authenticate, asyncHandler(getClasses));
 
 module.exports = router;

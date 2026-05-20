@@ -1,5 +1,6 @@
 const express = require("express");
 const router = express.Router();
+const asyncHandler = require("../middleware/asyncHandler");
 
 const {
   createMark,
@@ -44,7 +45,7 @@ router.post(
   "/",
   authenticate,
   isTeacher,
-  createMark
+  asyncHandler(createMark)
 );
 
 /**
@@ -59,6 +60,6 @@ router.post(
  *         description: Marks fetched successfully
  */
 
-router.get("/", getMarks);
+router.get("/", authenticate, asyncHandler(getMarks));
 
 module.exports = router;
