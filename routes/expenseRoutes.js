@@ -1,8 +1,18 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
+const {
+  validateRequest
+} = require("../middleware/validation");
+const {
+  expenseEntrySchema,
+  expensePaymentVerificationSchema
+} = require("../validators/expenseRouteValidator");
 
-router.post("/", async (req, res) => {
+router.post(
+  "/",
+  validateRequest(expenseEntrySchema),
+  async (req, res) => {
 
   try {
 
@@ -126,7 +136,10 @@ router.put("/:id/approve", async (req, res) => {
 
 });
 
-router.put("/:id/verify-payment", async (req, res) => {
+router.put(
+  "/:id/verify-payment",
+  validateRequest(expensePaymentVerificationSchema, { useTextResponse: true }),
+  async (req, res) => {
 
   try {
 

@@ -1,5 +1,6 @@
 const pool = require("../db");
 const classSchema = require("../validators/classValidator");
+const { successResponse, errorResponse } = require("../utils/response");
 
 // CREATE CLASS
 const createClass = async (req, res) => {
@@ -9,9 +10,7 @@ const createClass = async (req, res) => {
     const { error } = classSchema.validate(req.body);
 
     if (error) {
-      return res.status(400).json({
-        error: error.details[0].message
-      });
+      return errorResponse(res, { message: error.details[0].message, error: error.details[0].message, status: 400 });
     }
 
     const { class_name } = req.body;
@@ -21,16 +20,12 @@ const createClass = async (req, res) => {
       [class_name, 1]
     );
 
-    res.json(result.rows[0]);
+    return successResponse(res, { data: result.rows[0], message: "Class created successfully" });
 
   } catch (err) {
 
     console.error(err);
-
-    res.status(500).json({
-      success: false,
-      message: "Error creating class"
-    });
+    return errorResponse(res, { message: "Error creating class", error: err.message, status: 500 });
 
   }
 
@@ -45,16 +40,12 @@ const getClasses = async (req, res) => {
       "SELECT * FROM classes ORDER BY id ASC"
     );
 
-    res.json(result.rows);
+    return successResponse(res, { data: result.rows, message: "Classes fetched successfully" });
 
   } catch (err) {
 
     console.error(err);
-
-    res.status(500).json({
-      success: false,
-      message: "Error fetching classes"
-    });
+    return errorResponse(res, { message: "Error fetching classes", error: err.message, status: 500 });
 
   }
 

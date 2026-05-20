@@ -1,9 +1,9 @@
 const pool = require("../db");
 const studentSchema = require("../validators/studentValidator");
+const { successResponse, errorResponse } = require("../utils/response");
+const AppError = require("../utils/AppError");
 // GET STUDENTS
 const getStudents = async (req, res) => {
-
-  try {
 
       const page = parseInt(req.query.page) || 1;
 
@@ -21,10 +21,16 @@ const getStudents = async (req, res) => {
         "created_at"
       ];
 
-      const sort =
-        allowedSortFields.includes(req.query.sort)
-          ? req.query.sort
-          : "name";
+      const requestedSort = req.query.sort;
+      let sort;
+      if (requestedSort) {
+        if (!allowedSortFields.includes(requestedSort)) {
+          throw new AppError(400, "Invalid sort parameter");
+        }
+        sort = requestedSort;
+      } else {
+        sort = "name";
+      }
       const result = await pool.query(
 
         `
@@ -35,8 +41,22 @@ const getStudents = async (req, res) => {
         AND gender ILIKE $2
         ORDER BY
         CASE
-          WHEN '${sort}' = 'student_class'
-          THEN student_class
+          WHEN '${sort}' = 'student_class' THEN
+            CASE student_class
+              WHEN 'I' THEN 1
+              WHEN 'II' THEN 2
+              WHEN 'III' THEN 3
+              WHEN 'IV' THEN 4
+              WHEN 'V' THEN 5
+              WHEN 'VI' THEN 6
+              WHEN 'VII' THEN 7
+              WHEN 'VIII' THEN 8
+              WHEN 'IX' THEN 9
+              WHEN 'X' THEN 10
+              WHEN 'XI' THEN 11
+              WHEN 'XII' THEN 12
+              ELSE CAST(student_class AS INTEGER)
+            END
         END ASC,
         ${sort} ASC
         LIMIT $3 OFFSET $4
@@ -76,53 +96,30 @@ const getStudents = async (req, res) => {
         totalStudents / limit
       );
 
-      res.json({
-
-        currentPage: page,
-
-        totalPages,
-
-        totalStudents,
-
-        students: result.rows
-
+      return successResponse(res, {
+        message: "Students fetched successfully",
+        data: {
+          currentPage: page,
+          totalPages,
+          totalStudents,
+          students: result.rows
+        }
       });
-
-
-  } catch (err) {
-
-    console.error(err);
-
-    res.status(500).json({
-      success: false,
-      message: "Error fetching students"
-    });
-
-  }
 
 };
 
 // CREATE STUDENT
     const createStudent = async (req, res) => {
-
-      try {
-
         const { error } = studentSchema.validate(req.body);
 
         if (error) {
-          return res.status(400).json({
-            error: error.details[0].message
-          });
+          return errorResponse(res, { message: error.details[0].message, error: error.details[0].message, status: 400 });
         }
 
-        const {
-          name,
-          gender,
-          category,
-          student_class,
-          section,
-          school_id
-        } = req.body;
+        const payload = {
+          ...req.body,
+          school_id: req.user.school_id
+        };
 
         const result = await pool.query(
           `
@@ -132,73 +129,45 @@ const getStudents = async (req, res) => {
           RETURNING *
           `,
           [
-            name,
-            gender,
-            category,
-            student_class,
-            section,
-            school_id
+            payload.name,
+            payload.gender,
+            payload.category,
+            payload.student_class,
+            payload.section,
+            payload.school_id
           ]
-        );
-
-        res.json(result.rows[0]);
-
-      } catch (err) {
-
-        console.error(err);
-
-        if (err.code === "23503") {
-          return res.status(400).json({
-            error: "Invalid school ID"
-          });
-        }
-
-        res.status(500).json({
-          success: false,
-          message: "Error adding student"
+        ).catch((err) => {
+          if (err.code === "23503") {
+            throw new AppError(400, "Invalid school ID");
+          }
+          throw err;
         });
 
-      }
-
+        return successResponse(res, { message: "Student created successfully", data: result.rows[0] });
     };
 
 // GET STUDENT BY ID
 const getStudentById = async (req, res) => {
-
-  try {
-
     const { id } = req.params;
 
     const result = await pool.query(
-      "SELECT * FROM students WHERE id = $1",
-      [id]
+      `
+      SELECT * FROM students
+      WHERE id = $1
+      AND school_id = $2
+      `,
+      [id, req.user.school_id]
     );
 
-
     if (result.rows.length === 0) {
-      return res.status(404).send("Student not found");
+      throw new AppError(404, "Student not found");
     }
 
-    res.json(result.rows[0]);
-
-  } catch (err) {
-
-    console.error(err);
-
-    res.status(500).json({
-      success: false,
-      message: "Error fetching student"
-    });
-
-  }
-
+    return successResponse(res, { message: "Student fetched successfully", data: result.rows[0] });
 };
 
 // UPDATE STUDENT
 const updateStudent = async (req, res) => {
-
-  try {
-
     const { id } = req.params;
 
     const {
@@ -206,8 +175,7 @@ const updateStudent = async (req, res) => {
       gender,
       category,
       student_class,
-      section,
-      school_id
+      section
     } = req.body;
 
     const result = await pool.query(
@@ -218,9 +186,9 @@ const updateStudent = async (req, res) => {
         gender = $2,
         category = $3,
         student_class = $4,
-        section = $5,
-        school_id = $6
-      WHERE id = $7
+        section = $5
+      WHERE id = $6
+      AND school_id = $7
       RETURNING *
       `,
       [
@@ -229,28 +197,16 @@ const updateStudent = async (req, res) => {
         category,
         student_class,
         section,
-        school_id,
-        id
+        id,
+        req.user.school_id
       ]
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).send("Student not found");
+      throw new AppError(404, "Student not found");
     }
 
-    res.json(result.rows[0]);
-
-  } catch (err) {
-
-    console.error(err);
-
-    res.status(500).json({
-      success: false,
-      message: "Error updating student"
-    });
-
-  }
-
+    return successResponse(res, { message: "Student updated successfully", data: result.rows[0] });
 };
 
 // DELETE STUDENT
@@ -266,30 +222,27 @@ const deleteStudent = async (req, res) => {
       UPDATE students
       SET is_active = false
       WHERE id = $1
+      AND school_id = $2
       RETURNING *
       `,
 
-      [id]
+      [
+        id,
+        req.user.school_id
+      ]
 
     );
 
     if (result.rows.length === 0) {
-      return res.status(404).send("Student not found");
+      return errorResponse(res, { message: "Student not found", error: "Student not found", status: 404 });
     }
 
-    res.json({
-      message: "Student deleted successfully",
-      student: result.rows[0]
-    });
+    return successResponse(res, { message: "Student deleted successfully", data: result.rows[0] });
 
   } catch (err) {
 
     console.error(err);
-
-    res.status(500).json({
-      success: false,
-      message: "Error deleting student"
-    });
+    return errorResponse(res, { message: "Error deleting student", error: err.message, status: 500 });
 
   }
 

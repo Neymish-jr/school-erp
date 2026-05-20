@@ -1,14 +1,13 @@
 const pool = require("../db");
 const sectionSchema = require("../validators/sectionValidator");
+const { successResponse, errorResponse } = require("../utils/response");
 
 // CREATE SECTION
 const createSection = async (req, res) => {
 const { error } = sectionSchema.validate(req.body);
 
 if (error) {
-  return res.status(400).json({
-    error: error.details[0].message
-  });
+  return errorResponse(res, { message: error.details[0].message, error: error.details[0].message, status: 400 });
 }
 
   try {
@@ -33,16 +32,12 @@ if (error) {
       ]
     );
 
-    res.json(result.rows[0]);
+    return successResponse(res, { data: result.rows[0], message: "Section created successfully" });
 
   } catch (err) {
 
     console.error(err);
-
-    res.status(500).json({
-      success: false,
-      message: "Error creating section"
-    });
+    return errorResponse(res, { message: "Error creating section", error: err.message, status: 500 });
 
   }
 
@@ -65,16 +60,12 @@ const getSections = async (req, res) => {
       `
     );
 
-    res.json(result.rows);
+    return successResponse(res, { data: result.rows, message: "Sections fetched successfully" });
 
   } catch (err) {
 
     console.error(err);
-
-    res.status(500).json({
-      success: false,
-      message: "Error fetching sections"
-    });
+    return errorResponse(res, { message: "Error fetching sections", error: err.message, status: 500 });
 
   }
 

@@ -1,14 +1,13 @@
 const pool = require("../db");
 const examSchema = require("../validators/examValidator");
+const { successResponse, errorResponse } = require("../utils/response");
 
 // CREATE EXAM
 const createExam = async (req, res) => {
 const { error } = examSchema.validate(req.body);
 
 if (error) {
-  return res.status(400).json({
-    error: error.details[0].message
-  });
+  return errorResponse(res, { message: error.details[0].message, error: error.details[0].message, status: 400 });
 }
 
   try {
@@ -29,15 +28,11 @@ if (error) {
       !start_date ||
       !end_date
     ) {
-      return res.status(400).json({
-        error: "Required fields missing"
-      });
+      return errorResponse(res, { message: "Required fields missing", error: "Required fields missing", status: 400 });
     }
 
     if (total_marks <= 0) {
-      return res.status(400).json({
-        error: "Total marks must be greater than 0"
-      });
+      return errorResponse(res, { message: "Total marks must be greater than 0", error: "Total marks must be greater than 0", status: 400 });
     }
 
     const result = await pool.query(
@@ -64,16 +59,12 @@ if (error) {
       ]
     );
 
-    res.json(result.rows[0]);
+    return successResponse(res, { data: result.rows[0], message: "Exam created successfully" });
 
   } catch (err) {
 
     console.error(err);
-
-    res.status(500).json({
-      success: false,
-      message: "Error creating exam"
-    });
+    return errorResponse(res, { message: "Error creating exam", error: err.message, status: 500 });
 
   }
 
@@ -97,16 +88,12 @@ const getExams = async (req, res) => {
       `
     );
 
-    res.json(result.rows);
+    return successResponse(res, { data: result.rows, message: "Exams fetched successfully" });
 
   } catch (err) {
 
     console.error(err);
-
-    res.status(500).json({
-      success: false,
-      message: "Error fetching exams"
-    });
+    return errorResponse(res, { message: "Error fetching exams", error: err.message, status: 500 });
 
   }
 

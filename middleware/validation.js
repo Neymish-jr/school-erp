@@ -28,6 +28,27 @@ const validateRegister = [
   }
 ];
 
+const validateRequest = (schema, options = {}) => {
+  return (req, res, next) => {
+    const { error } = schema.validate(req.body);
+
+    if (error) {
+      const message = error.details[0].message;
+
+      if (options.useTextResponse) {
+        return res.status(400).send(message);
+      }
+
+      return res.status(400).json({
+        error: message
+      });
+    }
+
+    next();
+  };
+};
+
 module.exports = {
-  validateRegister
+  validateRegister,
+  validateRequest
 };

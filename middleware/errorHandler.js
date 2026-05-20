@@ -1,14 +1,15 @@
+const { errorResponse } = require("../utils/response");
+
 const errorHandler = (err, req, res, next) => {
 
   console.error(err.stack);
 
-  res.status(err.status || 500).json({
+  const statusCode = err.statusCode || 500;
 
-    success: false,
-
-    message:
-      err.message || "Internal Server Error"
-
+  return errorResponse(res, {
+    message: err.message || "Internal Server Error",
+    error: err.stack,
+    status: statusCode
   });
 
 };

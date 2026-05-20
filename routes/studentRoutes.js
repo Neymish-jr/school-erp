@@ -1,7 +1,12 @@
 const express = require("express");
 const router = express.Router();
-const authMiddleware = require("../middleware/authMiddleware");
+const {
+  authenticate
+} = require("../middleware/auth");
+const asyncHandler = require("../middleware/asyncHandler");
 const roleMiddleware = require("../middleware/roleMiddleware");
+const { validateRequest } = require("../middleware/validation");
+const studentSchema = require("../validators/studentValidator");
 
 const {
   getStudents,
@@ -21,7 +26,7 @@ const {
  *         description: List of students
  */
 
-router.get("/", authMiddleware, getStudents);
+// GET route is defined below wrapped with asyncHandler
 
 /**
  * @swagger
@@ -56,9 +61,9 @@ router.get("/", authMiddleware, getStudents);
 
 router.post(
   "/",
-  authMiddleware,
+  authenticate,
   roleMiddleware("admin"),
-  createStudent
+  asyncHandler(createStudent)
 );
 
 /**
@@ -94,10 +99,19 @@ router.post(
  *         description: Students fetched successfully
  */
 
-router.get("/:id", authMiddleware, getStudentById);
+  router.get(
+    "/:id",
+    authenticate,
+    asyncHandler(getStudentById)
+  );
 
-router.put("/:id", authMiddleware, updateStudent);
+router.put(
+  "/:id",
+  authenticate,
+  validateRequest(studentSchema),
+  asyncHandler(updateStudent)
+);
 
-router.delete("/:id", authMiddleware, deleteStudent);
+router.delete("/:id", authenticate, deleteStudent);
 
 module.exports = router;

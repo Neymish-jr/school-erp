@@ -1,14 +1,13 @@
 const pool = require("../db");
 const markSchema = require("../validators/markValidator");
+const { successResponse, errorResponse } = require("../utils/response");
 
 // ADD MARKS
 const createMark = async (req, res) => {
 const { error } = markSchema.validate(req.body);
 
 if (error) {
-  return res.status(400).json({
-    error: error.details[0].message
-  });
+  return errorResponse(res, { message: error.details[0].message, error: error.details[0].message, status: 400 });
 }
   try {
 
@@ -44,22 +43,17 @@ if (error) {
       ]
     );
 
-    res.json(result.rows[0]);
+    return successResponse(res, { data: result.rows[0], message: "Marks added successfully" });
 
   } catch (err) {
 
     console.error(err);
 
     if (err.code === "23505") {
-      return res.status(400).send(
-        "Marks already entered"
-      );
+      return errorResponse(res, { message: "Marks already entered", error: "Marks already entered", status: 400 });
     }
 
-    res.status(500).json({
-      success: false,
-      message: "Error adding marks"
-    });
+    return errorResponse(res, { message: "Error adding marks", error: err.message, status: 500 });
 
   }
 
@@ -92,16 +86,12 @@ const getMarks = async (req, res) => {
       `
     );
 
-    res.json(result.rows);
+    return successResponse(res, { data: result.rows, message: "Marks fetched successfully" });
 
   } catch (err) {
 
     console.error(err);
-
-    res.status(500).json({
-      success: false,
-      message: "Error fetching marks"
-    });
+    return errorResponse(res, { message: "Error fetching marks", error: err.message, status: 500 });
 
   }
 
