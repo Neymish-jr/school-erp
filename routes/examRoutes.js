@@ -1,14 +1,17 @@
 const express = require("express");
 const router = express.Router();
+
 const asyncHandler = require("../middleware/asyncHandler");
 const { authenticate } = require("../middleware/auth");
+const { validateRequest } = require("../middleware/validation");
+const examSchema = require("../validators/examValidator");
 
 const {
   createExam,
   getExams
 } = require("../controllers/examController");
 
-router.post("/", authenticate, asyncHandler(createExam));
+router.post("/", authenticate, validateRequest(examSchema), asyncHandler(createExam));
 
 router.get("/", authenticate, asyncHandler(getExams));
 

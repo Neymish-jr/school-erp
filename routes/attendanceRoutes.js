@@ -1,6 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../middleware/asyncHandler");
+const { validateRequest } = require("../middleware/validation");
+const attendanceSchema = require("../validators/attendanceValidator");
 
 const {
   markAttendance,
@@ -44,6 +46,7 @@ router.post(
   "/",
   authenticate,
   isTeacher,
+  validateRequest(attendanceSchema),
   asyncHandler(markAttendance)
 );
 

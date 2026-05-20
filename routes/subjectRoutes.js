@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../middleware/asyncHandler");
 const { authenticate } = require("../middleware/auth");
+const { validateRequest } = require("../middleware/validation");
+const subjectSchema = require("../validators/subjectValidator");
 
 const {
   createSubject,
@@ -33,7 +35,7 @@ const {
  *         description: Section created successfully
  */
 
-router.post("/", authenticate, asyncHandler(createSubject));
+router.post("/", authenticate, validateRequest(subjectSchema), asyncHandler(createSubject));
 
 /**
  * @swagger

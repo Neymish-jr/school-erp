@@ -2,6 +2,8 @@ const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../middleware/asyncHandler");
 const { authenticate } = require("../middleware/auth");
+const { validateRequest } = require("../middleware/validation");
+const classSchema = require("../validators/classValidator");
 
 const {
   getClasses,
@@ -28,7 +30,7 @@ const {
  *       200:
  *         description: Class created successfully
  */
-router.post("/", authenticate, asyncHandler(createClass));
+router.post("/", authenticate, validateRequest(classSchema), asyncHandler(createClass));
 
 /**
  * @swagger
