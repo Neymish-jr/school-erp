@@ -100,17 +100,16 @@ router.post(
  */
 
   router.get(
+    "/",
+    authenticate,
+    asyncHandler(getStudents)
+  );
+
+  router.get(
     "/:id",
     authenticate,
     asyncHandler(getStudentById)
   );
-
-router.put(
-  "/:id",
-  authenticate,
-  validateRequest(studentSchema),
-  asyncHandler(updateStudent)
-);
 
 router.delete("/:id", authenticate, deleteStudent);
 
