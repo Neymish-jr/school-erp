@@ -47,19 +47,57 @@ const createTeacher = async (req, res) => {
 // GET TEACHERS
 const getTeachers = async (req, res) => {
 
+  const page = Number(req.query.page) || 1;
+
+  const limit = Number(req.query.limit) || 3;
+
+  const search = req.query.search || "";
+
+  const skip = (page - 1) * limit;
+
+  // GET TEACHERS
   const result = await pool.query(
     `
     SELECT *
     FROM teachers
     WHERE school_id = $1
+    AND teacher_name ILIKE $2
     ORDER BY id ASC
+    LIMIT $3
+    OFFSET $4
     `,
-    [req.user.school_id]
+    [
+      req.user.school_id,
+      `%${search}%`,
+      limit,
+      skip
+    ]
   );
+
+  // COUNT TOTAL TEACHERS
+  const countResult = await pool.query(
+    `
+    SELECT COUNT(*) 
+    FROM teachers
+    WHERE school_id = $1
+    AND teacher_name ILIKE $2
+    `,
+    [
+      req.user.school_id,
+      `%${search}%`
+    ]
+  );
+
+  const totalTeachers = Number(countResult.rows[0].count);
+
+  const totalPages = Math.ceil(totalTeachers / limit);
 
   return successResponse(res, {
     message: "Teachers fetched successfully",
-    data: result.rows
+    data: {
+      teachers: result.rows,
+      totalPages
+    }
   });
 
 };
