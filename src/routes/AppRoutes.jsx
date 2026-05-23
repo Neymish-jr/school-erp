@@ -4,7 +4,9 @@ import Login from "../pages/auth/Login";
 import Dashboard from "../pages/dashboard/Dashboard";
 import ProtectedRoute from "./ProtectedRoute.jsx";
 import Students from "../pages/students/Students";
+import Classes from "../pages/classes/Classes";
 import Teachers from "../pages/teachers/Teachers";
+import Attendance from "../pages/attendance/Attendance";
 
 function AppRoutes() {
   return (
@@ -31,6 +33,14 @@ function AppRoutes() {
           }
         />
         <Route
+          path="/classes"
+          element={
+            <ProtectedRoute>
+              <Classes />
+            </ProtectedRoute>
+          }
+        />
+        <Route
           path="/teachers"
           element={
             <ProtectedRoute>
@@ -38,7 +48,15 @@ function AppRoutes() {
             </ProtectedRoute>
           }
         />
-        
+        <Route
+          path="/attendance"
+          element={
+            <ProtectedRoute>
+              <Attendance />
+            </ProtectedRoute>
+          }
+        />
+
       </Routes>
     </BrowserRouter>
   );

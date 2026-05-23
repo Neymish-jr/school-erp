@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import DashboardLayout from "../../layouts/DashboardLayout";
 import API from "../../api/axios";
 
@@ -12,6 +12,7 @@ const emptyForm = {
 
 function Students() {
   const [students, setStudents] = useState([]);
+  const [classSections, setClassSections] = useState([]);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -34,6 +35,18 @@ function Students() {
           Authorization: `Bearer ${token}`,
         }
       : {};
+  };
+
+  const fetchClassSections = async () => {
+    try {
+      const res = await API.get("/api/class-sections", {
+        headers: getAuthHeaders(),
+      });
+
+      setClassSections(Array.isArray(res?.data?.data) ? res.data.data : []);
+    } catch (err) {
+      setClassSections([]);
+    }
   };
 
   const fetchStudents = async () => {
@@ -69,8 +82,41 @@ function Students() {
   };
 
   useEffect(() => {
+    fetchClassSections();
     fetchStudents();
   }, [page, search]);
+
+  const classOptions = useMemo(() => {
+    const classes = Array.from(
+      new Set(classSections.map((item) => item.class_name).filter(Boolean))
+    );
+
+    if (formData.student_class && !classes.includes(formData.student_class)) {
+      classes.push(formData.student_class);
+    }
+
+    return classes.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [classSections, formData.student_class]);
+
+  const sectionOptions = useMemo(() => {
+    const sections = Array.from(
+      new Set(
+        classSections
+          .filter(
+            (item) =>
+              !formData.student_class || item.class_name === formData.student_class
+          )
+          .map((item) => item.section_name)
+          .filter(Boolean)
+      )
+    );
+
+    if (formData.section && !sections.includes(formData.section)) {
+      sections.push(formData.section);
+    }
+
+    return sections.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+  }, [classSections, formData.section, formData.student_class]);
 
   const openAddModal = () => {
     setEditingId(null);
@@ -107,6 +153,13 @@ function Students() {
       ...prev,
       [name]: value,
     }));
+
+    if (name === "student_class") {
+      setFormData((prev) => ({
+        ...prev,
+        section: "",
+      }));
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -117,6 +170,12 @@ function Students() {
     setSuccessMessage("");
 
     try {
+      if (!formData.student_class || !formData.section) {
+        setError("Please select a class and section from the available options.");
+        setIsSaving(false);
+        return;
+      }
+
       if (editingId) {
         await API.put(`/api/students/${editingId}`, formData, {
           headers: getAuthHeaders(),
@@ -155,7 +214,9 @@ function Students() {
 
       setDeleteTarget(null);
       setSuccessMessage("Student deleted successfully.");
-      setPage((currentPage) => (currentPage > 1 && students.length === 1 ? currentPage - 1 : currentPage));
+      setPage((currentPage) =>
+        currentPage > 1 && students.length === 1 ? currentPage - 1 : currentPage
+      );
       fetchStudents();
     } catch (err) {
       setError(err?.response?.data?.message || "Unable to delete student.");
@@ -290,7 +351,10 @@ function Students() {
                   </tr>
                 ) : (
                   students.map((student) => (
-                    <tr key={student.id} className="border-t border-slate-800 transition hover:bg-slate-800/60">
+                    <tr
+                      key={student.id}
+                      className="border-t border-slate-800 transition hover:bg-slate-800/60"
+                    >
                       <td className="px-4 py-4 font-medium text-white">{student.name}</td>
                       <td className="px-4 py-4">{student.gender || "—"}</td>
                       <td className="px-4 py-4">{student.category || "—"}</td>
@@ -425,9 +489,9 @@ function Students() {
                   className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
                 >
                   <option value="">Select class</option>
-                  {Array.from({ length: 12 }, (_, index) => (
-                    <option key={index + 1} value={String(index + 1)}>
-                      {index + 1}
+                  {classOptions.map((className) => (
+                    <option key={className} value={className}>
+                      {className}
                     </option>
                   ))}
                 </select>
@@ -443,9 +507,11 @@ function Students() {
                   className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
                 >
                   <option value="">Select section</option>
-                  <option value="A">A</option>
-                  <option value="B">B</option>
-                  <option value="C">C</option>
+                  {sectionOptions.map((sectionName) => (
+                    <option key={sectionName} value={sectionName}>
+                      {sectionName}
+                    </option>
+                  ))}
                 </select>
               </label>
 

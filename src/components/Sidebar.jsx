@@ -17,8 +17,16 @@ function Sidebar() {
           Students
         </Link>
 
+        <Link to="/classes" className="hover:text-blue-400">
+          Classes
+        </Link>
+
         <Link to="/teachers" className="hover:text-blue-400">
           Teachers
+        </Link>
+
+        <Link to="/attendance" className="hover:text-blue-400">
+          Attendance
         </Link>
 
       </div>
