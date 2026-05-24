@@ -25,6 +25,14 @@ function Sidebar() {
           Teachers
         </Link>
 
+        <Link to="/subjects" className="hover:text-blue-400">
+          Subjects
+        </Link>
+
+        <Link to="/teacher-assignments" className="hover:text-blue-400">
+          Teacher Assignments
+        </Link>
+
         <Link to="/attendance" className="hover:text-blue-400">
           Attendance
         </Link>

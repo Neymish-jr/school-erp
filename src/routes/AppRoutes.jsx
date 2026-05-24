@@ -7,6 +7,8 @@ import Students from "../pages/students/Students";
 import Classes from "../pages/classes/Classes";
 import Teachers from "../pages/teachers/Teachers";
 import Attendance from "../pages/attendance/Attendance";
+import Subjects from "../pages/subjects/Subjects";
+import TeacherAssignments from "../pages/teacherAssignments/TeacherAssignments";
 
 function AppRoutes() {
   return (
@@ -45,6 +47,22 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <Teachers />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/subjects"
+          element={
+            <ProtectedRoute>
+              <Subjects />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/teacher-assignments"
+          element={
+            <ProtectedRoute>
+              <TeacherAssignments />
             </ProtectedRoute>
           }
         />
