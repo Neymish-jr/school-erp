@@ -9,11 +9,16 @@ import Teachers from "../pages/teachers/Teachers";
 import Attendance from "../pages/attendance/Attendance";
 import Subjects from "../pages/subjects/Subjects";
 import TeacherAssignments from "../pages/teacherAssignments/TeacherAssignments";
+import Results from "../pages/results/Results";
+import ReportCard from "../pages/reportCard/ReportCard";
+import Timetable from "../pages/timetable/Timetable";
+import StaffPosts from "../pages/staffPosts/StaffPosts";
 
 function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
+        
 
         <Route path="/" element={<Login />} />
 
@@ -71,6 +76,39 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <Attendance />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/results"
+          element={
+            <ProtectedRoute>
+              <Results />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/report-card"
+          element={
+            <ProtectedRoute>
+              <ReportCard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/timetable"
+          element={
+            <ProtectedRoute>
+              <Timetable />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/staff-posts"
+          element={
+            <ProtectedRoute>
+              <StaffPosts />
             </ProtectedRoute>
           }
         />
