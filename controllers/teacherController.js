@@ -55,7 +55,6 @@ const getTeachers = async (req, res) => {
 
   const skip = (page - 1) * limit;
 
-  // GET TEACHERS
   const result = await pool.query(
     `
     SELECT *
