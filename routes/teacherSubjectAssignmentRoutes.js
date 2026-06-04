@@ -7,6 +7,7 @@ const teacherSubjectAssignmentSchema = require("../validators/teacherSubjectAssi
 
 const {
   getAssignments,
+  getAssignmentsByTeacherId,
   getAssignmentsForTeacher,
   createAssignment,
   deleteAssignment,
@@ -14,6 +15,7 @@ const {
 
 router.get("/", authenticate, isAdmin, asyncHandler(getAssignments));
 router.get("/me", authenticate, isTeacherOrAdmin, asyncHandler(getAssignmentsForTeacher));
+router.get("/teacher/:teacherId", authenticate, isAdmin, asyncHandler(getAssignmentsByTeacherId));
 router.post(
   "/",
   authenticate,

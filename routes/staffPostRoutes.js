@@ -1,34 +1,31 @@
 const express = require("express");
-const router = express.Router();
-const asyncHandler = require("../middleware/asyncHandler");
-const { authenticate, isAdmin } = require("../middleware/auth");
-const { validateRequest } = require("../middleware/validation");
-const { staffPostSchema } = require("../validators/staffPostValidator");
-
 const {
-  getStaffPosts,
+  getAllStaffPosts,
   getStaffPostById,
   createStaffPost,
   updateStaffPost,
-  deactivateStaffPost,
+  deleteStaffPost,
 } = require("../controllers/staffPostController");
+const { protect, authorize } = require("../middleware/auth");
+const { validate } = require("../middleware/validation");
+const {
+  createStaffPostValidation,
+  updateStaffPostValidation,
+  getStaffPostByIdValidation,
+  deleteStaffPostValidation,
+} = require("../validators/staffPostValidator");
 
-router.get("/", authenticate, asyncHandler(getStaffPosts));
-router.get("/:id", authenticate, asyncHandler(getStaffPostById));
-router.post(
-  "/",
-  authenticate,
-  isAdmin,
-  validateRequest(staffPostSchema),
-  asyncHandler(createStaffPost)
-);
-router.put(
-  "/:id",
-  authenticate,
-  isAdmin,
-  validateRequest(staffPostSchema),
-  asyncHandler(updateStaffPost)
-);
-router.delete("/:id", authenticate, isAdmin, asyncHandler(deactivateStaffPost));
+const router = express.Router();
+
+router
+  .route("/")
+  .get(protect, authorize(["admin", "staff"]), getAllStaffPosts)
+  .post(protect, authorize(["admin"]), validate(createStaffPostValidation), createStaffPost);
+
+router
+  .route("/:id")
+  .get(protect, authorize(["admin", "staff"]), validate(getStaffPostByIdValidation), getStaffPostById)
+  .put(protect, authorize(["admin"]), validate(updateStaffPostValidation), updateStaffPost)
+  .delete(protect, authorize(["admin"]), validate(deleteStaffPostValidation), deleteStaffPost);
 
 module.exports = router;

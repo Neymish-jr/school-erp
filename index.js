@@ -27,6 +27,7 @@ const quotationRoutes = require("./routes/quotationRoutes");
 const staffPostRoutes = require("./routes/staffPostRoutes");
 const administrativeChargeRoutes = require("./routes/administrativeChargeRoutes");
 const teacherAdministrativeChargeAssignmentRoutes = require("./routes/teacherAdministrativeChargeAssignmentRoutes");
+const teacherStaffPostAssignmentRoutes = require("./routes/teacherStaffPostAssignmentRoutes");
 const cors = require("cors");
 const attendanceRoutes = require("./routes/attendanceRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
@@ -176,7 +177,7 @@ pool.query(`
   CREATE TABLE IF NOT EXISTS administrative_charges (
     id SERIAL PRIMARY KEY,
     charge_name TEXT NOT NULL,
-    description TEXT DEFAULT '',
+    description TEXT DEFAULT \'\',
     is_active BOOLEAN NOT NULL DEFAULT true,
     school_id INTEGER NOT NULL DEFAULT 1,
     created_at TIMESTAMP DEFAULT NOW(),
@@ -185,6 +186,22 @@ pool.query(`
   )
 `).catch((err) => {
   console.error("Failed to initialize administrative_charges table", err);
+});
+
+pool.query(`
+  CREATE TABLE IF NOT EXISTS teacher_staff_post_assignments (
+    id SERIAL PRIMARY KEY,
+    teacher_id INTEGER NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
+    staff_post_id INTEGER NOT NULL REFERENCES staff_posts(id) ON DELETE CASCADE,
+    assigned_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    end_date DATE,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT unique_teacher_post_assignment UNIQUE (teacher_id, staff_post_id, assigned_date)
+  );
+`).catch((err) => {
+  console.error("Failed to initialize teacher_staff_post_assignments table", err);
 });
 
 app.use(limiter);
@@ -213,7 +230,17 @@ app.use("/api/quotations", quotationRoutes);
 app.use("/api/staff-posts", staffPostRoutes);
 app.use("/api/administrative-charges", administrativeChargeRoutes);
 app.use("/api/teacher-administrative-charge-assignments", teacherAdministrativeChargeAssignmentRoutes);
+app.use("/api/teacher-staff-post-assignments", teacherStaffPostAssignmentRoutes);
 app.use("/", authRoutes);
+
+
+// Staff Post Management Dashboard Widgets Routes
+app.get("/api/dashboard/staff-posts/total", protect, authorize(["admin", "staff"]), staffPostController.getTotalStaffPosts);
+app.get("/api/dashboard/staff-posts/sanctioned-strength", protect, authorize(["admin", "staff"]), staffPostController.getTotalSanctionedStrength);
+app.get("/api/dashboard/staff-posts/filled-positions", protect, authorize(["admin", "staff"]), staffPostController.getFilledPositions);
+app.get("/api/dashboard/staff-posts/vacant-positions", protect, authorize(["admin", "staff"]), staffPostController.getVacantPositions);
+
+
 app.use("/api/v1/auth", authRoutes);
 app.use(
   "/api/student-import",

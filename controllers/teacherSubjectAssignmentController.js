@@ -77,6 +77,45 @@ const getAssignments = async (req, res) => {
   }
 };
 
+const getAssignmentsByTeacherId = async (req, res) => {
+  try {
+    const { teacherId } = req.params;
+    const { school_id } = req.user;
+
+    const teacherCheck = await pool.query(
+      `
+      SELECT id
+      FROM teachers
+      WHERE id = $1 AND school_id = $2
+      `,
+      [teacherId, school_id]
+    );
+
+    if (teacherCheck.rowCount === 0) {
+      return errorResponse(res, {
+        message: "Teacher not found in your school",
+        error: "Not found",
+        status: 404,
+      });
+    }
+
+    const { query, params } = buildAssignmentsQuery(Number(teacherId));
+    const result = await pool.query(query, params);
+
+    return successResponse(res, {
+      message: "Teacher assignments fetched successfully",
+      data: result.rows,
+    });
+  } catch (err) {
+    console.error(err);
+    return errorResponse(res, {
+      message: "Error fetching teacher assignments",
+      error: err.message,
+      status: 500,
+    });
+  }
+};
+
 const getAssignmentsForTeacher = async (req, res) => {
   try {
     let teacherId = req.user.teacher_id;
@@ -218,6 +257,7 @@ const deleteAssignment = async (req, res) => {
 
 module.exports = {
   getAssignments,
+  getAssignmentsByTeacherId,
   getAssignmentsForTeacher,
   createAssignment,
   deleteAssignment,
