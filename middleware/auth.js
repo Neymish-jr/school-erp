@@ -52,8 +52,20 @@ const isTeacher = (req, res, next) => {
 
 };
 
+// ALLOW ADMIN OR TEACHER
+const isTeacherOrAdmin = (req, res, next) => {
+
+  if (!["teacher", "admin"].includes(req.user.role)) {
+    return res.status(403).send("Only teachers and admins allowed");
+  }
+
+  next();
+
+};
+
 module.exports = {
   authenticate,
   isAdmin,
-  isTeacher
+  isTeacher,
+  isTeacherOrAdmin
 };

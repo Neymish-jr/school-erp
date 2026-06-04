@@ -1,10 +1,10 @@
 const express = require("express");
 const router = express.Router();
 
-const {
-  getReportCard
-} = require("../controllers/reportCardController");
+const asyncHandler = require("../middleware/asyncHandler");
+const { authenticate } = require("../middleware/auth");
+const { getReportCard } = require("../controllers/reportCardController");
 
-router.get("/:studentId", getReportCard);
+router.get("/:studentId", authenticate, asyncHandler(getReportCard));
 
 module.exports = router;

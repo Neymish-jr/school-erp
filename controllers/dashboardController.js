@@ -12,8 +12,7 @@ const getDashboardStats = async (req, res) => {
 
     const totalTeachers = await pool.query(
       `
-      SELECT COUNT(*) FROM users
-      WHERE role = 'teacher'
+      SELECT COUNT(*) FROM teachers
       `
     );
 

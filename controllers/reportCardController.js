@@ -1,171 +1,187 @@
 const pool = require("../db");
+const { successResponse, errorResponse } = require("../utils/response");
 
-// GENERATE REPORT CARD
+const EXAM_ORDER = [
+  "Unit Test 1",
+  "Unit Test 2",
+  "Unit Test 3",
+  "Unit Test 4",
+  "Half Yearly",
+  "Pre Board 1",
+  "Pre Board 2",
+  "Final Exam",
+];
+
+const getGrade = (percentage) => {
+  if (percentage >= 90) {
+    return "A+";
+  }
+
+  if (percentage >= 75) {
+    return "A";
+  }
+
+  if (percentage >= 60) {
+    return "B";
+  }
+
+  if (percentage >= 45) {
+    return "C";
+  }
+
+  return "Fail";
+};
+
+const getStatus = (percentage) => (percentage >= 45 ? "Pass" : "Fail");
+
+const getExamOrder = (examName) => {
+  const index = EXAM_ORDER.indexOf(examName);
+
+  if (index === -1) {
+    return EXAM_ORDER.length + 1;
+  }
+
+  return index;
+};
+
 const getReportCard = async (req, res) => {
-
   try {
-
     const { studentId } = req.params;
 
-    // STUDENT DETAILS
     const studentResult = await pool.query(
       `
-      SELECT *
+      SELECT
+        id,
+        name,
+        student_class,
+        section,
+        is_active,
+        created_at
       FROM students
       WHERE id = $1
       `,
       [studentId]
     );
 
-    if (studentResult.rows.length === 0) {
-      return res.status(404).send(
-        "Student not found"
-      );
+    if (studentResult.rowCount === 0) {
+      return errorResponse(res, {
+        message: "Student not found",
+        error: "Student not found",
+        status: 404,
+      });
     }
 
     const student = studentResult.rows[0];
 
-    // MARKS DATA
-    const marksResult = await pool.query(
+    const resultRows = await pool.query(
       `
       SELECT
+        sr.id,
+        sr.student_id,
+        sr.subject_id,
+        sr.exam_name,
+        sr.marks_obtained,
+        sr.max_marks,
+        sr.percentage,
+        sr.result_status,
+        sr.created_at,
         subjects.subject_name,
-        exams.exam_name,
-        marks.marks_obtained,
-        marks.total_marks
-
-      FROM marks
-
+        subjects.subject_code
+      FROM student_results AS sr
       JOIN subjects
-      ON marks.subject_id = subjects.id
-
-      JOIN exams
-      ON marks.exam_id = exams.id
-
-      WHERE marks.student_id = $1
+        ON subjects.id = sr.subject_id
+      WHERE sr.student_id = $1
+      ORDER BY sr.created_at ASC
       `,
       [studentId]
     );
 
-    // ATTENDANCE
-    const attendanceResult = await pool.query(
-      `
-      SELECT
-        COUNT(*) FILTER (WHERE status = 'present') AS present_days,
-        COUNT(*) AS total_days
-      FROM attendance
-      WHERE student_id = $1
-      `,
-      [studentId]
-    );
-
-    const attendance = attendanceResult.rows[0];
-
-    const presentDays =
-      Number(attendance.present_days || 0);
-
-    const totalDays =
-      Number(attendance.total_days || 0);
-
-    const attendancePercentage =
-      totalDays === 0
-        ? 0
-        : (
-            (presentDays / totalDays) * 100
-          ).toFixed(2);
-
-    // CALCULATE TOTALS
+    const examGroups = new Map();
     let totalObtained = 0;
     let totalMax = 0;
 
-    const subjects = marksResult.rows.map(mark => {
-
-      totalObtained +=
-        Number(mark.marks_obtained);
-
-      totalMax += Number(mark.total_marks);
-
-      let grade = "F";
-
-      const percentage =
-        (mark.marks_obtained / mark.total_marks) * 100
-
-      if (percentage >= 90) grade = "A+";
-      else if (percentage >= 75) grade = "A";
-      else if (percentage >= 60) grade = "B";
-      else if (percentage >= 40) grade = "C";
-
-      return {
-        subject: mark.subject_name,
-        exam: mark.exam_name,
-        marks_obtained: mark.marks_obtained,
-        total_marks: mark.total_marks,
-        grade
+    resultRows.rows.forEach((row) => {
+      const examName = row.exam_name;
+      const existing = examGroups.get(examName) || {
+        exam_name: examName,
+        subjects: [],
+        obtained_marks: 0,
+        total_marks: 0,
       };
 
+      const subjectPercentage = Number(row.percentage || 0);
+      const subjectStatus = row.result_status || getStatus(subjectPercentage);
+
+      existing.subjects.push({
+        subject_id: row.subject_id,
+        subject_name: row.subject_name,
+        subject_code: row.subject_code,
+        marks_obtained: Number(row.marks_obtained),
+        max_marks: Number(row.max_marks),
+        percentage: Number(subjectPercentage.toFixed(2)),
+        status: subjectStatus,
+      });
+
+      existing.obtained_marks += Number(row.marks_obtained);
+      existing.total_marks += Number(row.max_marks);
+
+      totalObtained += Number(row.marks_obtained);
+      totalMax += Number(row.max_marks);
+
+      examGroups.set(examName, existing);
     });
 
-    const overallPercentage =
-      totalMax === 0
-        ? 0
-        : (
-            (totalObtained / totalMax) * 100
-          ).toFixed(2);
-    const hasFailedSubject = subjects.some(
-      subject => {
+    const sortedExamGroups = Array.from(examGroups.values())
+      .map((group) => {
+        const percentage = group.total_marks === 0
+          ? 0
+          : (group.obtained_marks / group.total_marks) * 100;
 
-        const percentage =
-          (subject.marks_obtained / subject.total_marks) * 100;
+        return {
+          ...group,
+          percentage: Number(percentage.toFixed(2)),
+          grade: getGrade(percentage),
+          status: getStatus(percentage),
+          subjects: group.subjects.sort((first, second) =>
+            (first.subject_name || "").localeCompare(second.subject_name || "")
+          ),
+        };
+      })
+      .sort((first, second) => getExamOrder(first.exam_name) - getExamOrder(second.exam_name));
 
-        return percentage < 40;
+    const overallPercentage = totalMax === 0 ? 0 : (totalObtained / totalMax) * 100;
 
-      }
-    );
-    const result =
-      hasFailedSubject
-        ? "Fail"
-        : "Pass";
-
-    res.json({
-
-      student: {
-        id: student.id,
-        name: student.name,
-        student_class: student.student_class,
-        section: student.section
+    return successResponse(res, {
+      data: {
+        student: {
+          id: student.id,
+          name: student.name,
+          student_class: student.student_class,
+          section: student.section,
+          roll_number: student.id,
+        },
+        summary: {
+          total_marks: totalMax,
+          obtained_marks: totalObtained,
+          percentage: Number(overallPercentage.toFixed(2)),
+          grade: getGrade(overallPercentage),
+          status: getStatus(overallPercentage),
+        },
+        exam_groups: sortedExamGroups,
       },
-
-      attendance_percentage:
-        attendancePercentage,
-
-      subjects,
-
-      total_marks_obtained:
-        totalObtained,
-
-      total_marks:
-        totalMax,
-
-      percentage:
-        overallPercentage,
-
-      result
-
+      message: "Report card fetched successfully",
     });
-
   } catch (err) {
-
     console.error(err);
 
-    res.status(500).json({
-      success: false,
-      message: "Error generating report card"
+    return errorResponse(res, {
+      message: "Error generating report card",
+      error: err.message,
+      status: 500,
     });
-
   }
-
 };
 
 module.exports = {
-  getReportCard
+  getReportCard,
 };

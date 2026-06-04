@@ -155,12 +155,13 @@ const createStaffPost = async (req, res) => {
         school_id,
         post_code,
         post_name,
+        post_category,
         staff_category,
         appointment_nature,
         is_teaching_post,
         sanctioned_count
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING *
       `,
       [
@@ -168,9 +169,10 @@ const createStaffPost = async (req, res) => {
         postCode,
         payload.post_name,
         payload.staff_category,
+        payload.staff_category,
         payload.appointment_nature,
         payload.is_teaching_post,
-        payload.sanctioned_count,
+        payload.sanctioned_count
       ]
     );
 

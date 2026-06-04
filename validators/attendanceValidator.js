@@ -9,7 +9,7 @@ const attendanceSchema = Joi.object({
   period: Joi.number().required(),
 
   status: Joi.string()
-    .valid("Present", "Absent", "Late")
+    .valid("Present", "Absent", "Late", "Leave")
     .required()
 
 });

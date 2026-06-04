@@ -1,5 +1,5 @@
 const pool = require("../db");
-const { successResponse } = require("../utils/response");
+const { successResponse, errorResponse } = require("../utils/response");
 const AppError = require("../utils/AppError");
 
 // CREATE TEACHER
@@ -49,7 +49,7 @@ const getTeachers = async (req, res) => {
 
   const page = Number(req.query.page) || 1;
 
-  const limit = Number(req.query.limit) || 3;
+  const limit = Number(req.query.limit) || 50;
 
   const search = req.query.search || "";
 
@@ -73,10 +73,9 @@ const getTeachers = async (req, res) => {
     ]
   );
 
-  // COUNT TOTAL TEACHERS
   const countResult = await pool.query(
     `
-    SELECT COUNT(*) 
+    SELECT COUNT(*)
     FROM teachers
     WHERE school_id = $1
     AND teacher_name ILIKE $2
@@ -87,9 +86,13 @@ const getTeachers = async (req, res) => {
     ]
   );
 
-  const totalTeachers = Number(countResult.rows[0].count);
+  const totalTeachers = Number(
+    countResult.rows[0].count
+  );
 
-  const totalPages = Math.ceil(totalTeachers / limit);
+  const totalPages = Math.ceil(
+    totalTeachers / limit
+  );
 
   return successResponse(res, {
     message: "Teachers fetched successfully",
@@ -127,6 +130,7 @@ const getTeacherById = async (req, res) => {
 
 };
 
+
 // UPDATE TEACHER
 const updateTeacher = async (req, res) => {
 
@@ -134,9 +138,10 @@ const updateTeacher = async (req, res) => {
 
   const {
     teacher_name,
-    designation,
+    email,
     phone,
-    age,
+    subject,
+    qualification,
     gender
   } = req.body;
 
@@ -145,19 +150,21 @@ const updateTeacher = async (req, res) => {
     UPDATE teachers
     SET
       teacher_name = $1,
-      designation = $2,
+      email = $2,
       phone = $3,
-      age = $4,
-      gender = $5
-    WHERE id = $6
-    AND school_id = $7
+      subject = $4,
+      qualification = $5,
+      gender = $6
+    WHERE id = $7
+    AND school_id = $8
     RETURNING *
     `,
     [
       teacher_name,
-      designation,
+      email,
       phone,
-      age,
+      subject,
+      qualification,
       gender,
       id,
       req.user.school_id
@@ -178,26 +185,60 @@ const updateTeacher = async (req, res) => {
 // DELETE TEACHER
 const deleteTeacher = async (req, res) => {
 
-  const { id } = req.params;
+  try {
 
-  const result = await pool.query(
-    `
-    DELETE FROM teachers
-    WHERE id = $1
-    AND school_id = $2
-    RETURNING *
-    `,
-    [id, req.user.school_id]
-  );
+    const { id } = req.params;
 
-  if (result.rows.length === 0) {
-    throw new AppError(404, "Teacher not found");
+    const result = await pool.query(
+      `
+      DELETE FROM teachers
+      WHERE id = $1
+      AND school_id = $2
+      RETURNING *
+      `,
+      [id, req.user.school_id]
+    );
+
+    if (result.rows.length === 0) {
+      return errorResponse(res, {
+        message: "Teacher not found",
+        error: "Teacher not found",
+        status: 404
+      });
+    }
+
+    return successResponse(res, {
+      message: "Teacher deleted successfully",
+      data: result.rows[0]
+    });
+
+  } catch (err) {
+
+    if (err.code === "23503") {
+      return errorResponse(res, {
+        message: "This teacher cannot be deleted because they are linked to existing activities.",
+        error: "Teacher has linked activities",
+        status: 409
+      });
+    }
+
+    if (err instanceof AppError) {
+      return errorResponse(res, {
+        message: err.message,
+        error: err.message,
+        status: err.statusCode
+      });
+    }
+
+    console.error(err);
+
+    return errorResponse(res, {
+      message: "Error deleting teacher",
+      error: err.message,
+      status: 500
+    });
+
   }
-
-  return successResponse(res, {
-    message: "Teacher deleted successfully",
-    data: result.rows[0]
-  });
 
 };
 

@@ -25,6 +25,8 @@ const cashbookRoutes = require("./routes/cashbookRoutes");
 const stockRoutes = require("./routes/stockRoutes");
 const quotationRoutes = require("./routes/quotationRoutes");
 const staffPostRoutes = require("./routes/staffPostRoutes");
+const administrativeChargeRoutes = require("./routes/administrativeChargeRoutes");
+const teacherAdministrativeChargeAssignmentRoutes = require("./routes/teacherAdministrativeChargeAssignmentRoutes");
 const cors = require("cors");
 const attendanceRoutes = require("./routes/attendanceRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
@@ -170,6 +172,21 @@ pool.query(`
   console.error("Failed to initialize staff_posts table", err);
 });
 
+pool.query(`
+  CREATE TABLE IF NOT EXISTS administrative_charges (
+    id SERIAL PRIMARY KEY,
+    charge_name TEXT NOT NULL,
+    description TEXT DEFAULT '',
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    school_id INTEGER NOT NULL DEFAULT 1,
+    created_at TIMESTAMP DEFAULT NOW(),
+    updated_at TIMESTAMP DEFAULT NOW(),
+    CONSTRAINT administrative_charges_school_name_unique UNIQUE (school_id, charge_name)
+  )
+`).catch((err) => {
+  console.error("Failed to initialize administrative_charges table", err);
+});
+
 app.use(limiter);
 app.use(express.json());
 app.use("/api/students", studentRoutes);
@@ -194,6 +211,8 @@ app.use("/api/attendance", attendanceRoutes);
 app.use("/api/timetable", timetableRoutes);
 app.use("/api/quotations", quotationRoutes);
 app.use("/api/staff-posts", staffPostRoutes);
+app.use("/api/administrative-charges", administrativeChargeRoutes);
+app.use("/api/teacher-administrative-charge-assignments", teacherAdministrativeChargeAssignmentRoutes);
 app.use("/", authRoutes);
 app.use("/api/v1/auth", authRoutes);
 app.use(

@@ -2,53 +2,40 @@ const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../middleware/asyncHandler");
 const { authenticate } = require("../middleware/auth");
+const roleMiddleware = require("../middleware/roleMiddleware");
 const { validateRequest } = require("../middleware/validation");
 const subjectSchema = require("../validators/subjectValidator");
 
 const {
   createSubject,
-  getSubjects
+  getSubjects,
+  updateSubject,
+  deleteSubject,
 } = require("../controllers/subjectController");
 
-/**
- * @swagger
- * /api/sections:
- *   post:
- *     summary: Create section
- *     tags:
- *       - Sections
- *     requestBody:
- *       required: true
- *       content:
- *         application/json:
- *           schema:
- *             type: object
- *             properties:
- *               section_name:
- *                 type: string
- *               class_id:
- *                 type: integer
- *               class_teacher_id:
- *                 type: integer
- *     responses:
- *       200:
- *         description: Section created successfully
- */
-
-router.post("/", authenticate, validateRequest(subjectSchema), asyncHandler(createSubject));
-
-/**
- * @swagger
- * /api/subjects:
- *   get:
- *     summary: Get subjects
- *     tags:
- *       - Subjects
- *     responses:
- *       200:
- *         description: Subjects fetched successfully
- */
+router.post(
+  "/",
+  authenticate,
+  roleMiddleware("admin"),
+  validateRequest(subjectSchema),
+  asyncHandler(createSubject)
+);
 
 router.get("/", authenticate, asyncHandler(getSubjects));
+
+router.put(
+  "/:id",
+  authenticate,
+  roleMiddleware("admin"),
+  validateRequest(subjectSchema),
+  asyncHandler(updateSubject)
+);
+
+router.delete(
+  "/:id",
+  authenticate,
+  roleMiddleware("admin"),
+  asyncHandler(deleteSubject)
+);
 
 module.exports = router;

@@ -7,12 +7,13 @@ const attendanceSchema = require("../validators/attendanceValidator");
 const {
   markAttendance,
   getAttendance,
-  getStudentAttendance
+  getStudentAttendance,
+  updateAttendance
 } = require("../controllers/attendanceController");
 
 const {
   authenticate,
-  isTeacher
+  isTeacherOrAdmin
 } = require("../middleware/auth");
 
 /**
@@ -45,9 +46,16 @@ const {
 router.post(
   "/",
   authenticate,
-  isTeacher,
+  isTeacherOrAdmin,
   validateRequest(attendanceSchema),
   asyncHandler(markAttendance)
+);
+
+router.put(
+  "/:id",
+  authenticate,
+  isTeacherOrAdmin,
+  asyncHandler(updateAttendance)
 );
 
 router.get(

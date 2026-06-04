@@ -52,12 +52,29 @@ const loginUser = async (req, res) => {
       return errorResponse(res, { message: "Invalid password", error: "Invalid password", status: 400 });
     }
 
+    let teacherId = null;
+
+    if (user.rows[0].role === "teacher") {
+      const teacherResponse = await pool.query(
+        "SELECT id FROM teachers WHERE teacher_name ILIKE $1 LIMIT 1",
+        [user.rows[0].name]
+      );
+
+      teacherId = teacherResponse.rows[0]?.id || null;
+    }
+
+    const tokenPayload = {
+      id: user.rows[0].id,
+      role: user.rows[0].role,
+      school_id: user.rows[0].school_id,
+    };
+
+    if (teacherId) {
+      tokenPayload.teacher_id = teacherId;
+    }
+
     const token = jwt.sign(
-      {
-        id: user.rows[0].id,
-        role: user.rows[0].role,
-        school_id: user.rows[0].school_id
-      },
+      tokenPayload,
       process.env.JWT_SECRET,
       {
         expiresIn: "7d"

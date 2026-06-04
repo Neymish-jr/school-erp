@@ -9,10 +9,7 @@ const {
 
 router.get(
   "/",
-  authenticate,
-  isAdmin,
-
-  async (req, res) => {
+   async (req, res) => {
 
     try {
 
