@@ -11,6 +11,8 @@ import DashboardLayout from "../../layouts/DashboardLayout";
 const ATTENDANCE_STATUSES = ["Present", "Absent", "Leave"];
 const DEFAULT_PERIOD = 1;
 
+const getTodayDateString = () => new Date().toISOString().split("T")[0];
+
 const getAuthHeaders = () => {
   const token = localStorage.getItem("token");
 
@@ -19,6 +21,24 @@ const getAuthHeaders = () => {
         Authorization: `Bearer ${token}`,
       }
     : {};
+};
+
+const decodeToken = () => {
+  try {
+    const token = localStorage.getItem("token");
+
+    if (!token) {
+      return {};
+    }
+
+    const [, payload] = token.split(".");
+    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const decoded = JSON.parse(atob(normalized));
+
+    return decoded || {};
+  } catch (error) {
+    return {};
+  }
 };
 
 const isValidAttendanceStatus = (status) => {
@@ -33,6 +53,14 @@ const getInvalidAttendanceRows = (students, attendanceByStudent) => {
   });
 };
 
+const buildDefaultAttendanceMap = (students) => {
+  return students.reduce((accumulator, student) => {
+    accumulator[student.id] = "Present";
+
+    return accumulator;
+  }, {});
+};
+
 function Attendance() {
   const [classes, setClasses] = useState([]);
   const [sections, setSections] = useState([]);
@@ -43,11 +71,15 @@ function Attendance() {
     () => new Date().toISOString().split("T")[0]
   );
   const [attendanceByStudent, setAttendanceByStudent] = useState({});
+  const [attendanceRecordByStudent, setAttendanceRecordByStudent] = useState({});
   const [isLoadingMetadata, setIsLoadingMetadata] = useState(true);
   const [isLoadingStudents, setIsLoadingStudents] = useState(false);
+  const [isLoadingExistingAttendance, setIsLoadingExistingAttendance] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [infoMessage, setInfoMessage] = useState("");
+  const [isTeacher, setIsTeacher] = useState(false);
 
   const availableSections = useMemo(() => {
     if (selectedClass === "all") {
@@ -57,16 +89,48 @@ function Attendance() {
     return sections.filter((section) => section.class_name === selectedClass);
   }, [sections, selectedClass]);
 
+  const sortedClasses = useMemo(() => {
+    return [...classes].sort((left, right) => {
+      const leftValue = Number(left.class_name);
+      const rightValue = Number(right.class_name);
+
+      if (Number.isNaN(leftValue) && Number.isNaN(rightValue)) {
+        return String(left.class_name).localeCompare(String(right.class_name));
+      }
+
+      if (Number.isNaN(leftValue)) {
+        return 1;
+      }
+
+      if (Number.isNaN(rightValue)) {
+        return -1;
+      }
+
+      return leftValue - rightValue;
+    });
+  }, [classes]);
+
   const filteredStudents = useMemo(() => {
     return students.filter((student) => {
       const matchesClass =
-        selectedClass === "all" || student.student_class === selectedClass;
+        selectedClass === "all" || String(student.student_class) === String(selectedClass);
       const matchesSection =
         selectedSection === "all" || student.section === selectedSection;
 
       return matchesClass && matchesSection;
     });
   }, [selectedClass, selectedSection, students]);
+
+  const hasExactFilterSelection =
+    selectedClass !== "all" && selectedSection !== "all" && Boolean(selectedDate);
+
+  const hasExistingAttendance = Object.keys(attendanceRecordByStudent).length > 0;
+
+  useEffect(() => {
+    const payload = decodeToken();
+
+    setIsTeacher(payload.role === "teacher");
+  }, []);
 
   useEffect(() => {
     if (selectedSection !== "all") {
@@ -166,20 +230,96 @@ function Attendance() {
   }, []);
 
   useEffect(() => {
-    setAttendanceByStudent((current) => {
-      const next = { ...current };
+    if (!hasExactFilterSelection) {
+      setAttendanceRecordByStudent({});
+      setAttendanceByStudent(buildDefaultAttendanceMap(filteredStudents));
+      setInfoMessage("");
+      return;
+    }
 
-      filteredStudents.forEach((student) => {
-        const currentStatus = next[student.id];
+    if (!students.length) {
+      setAttendanceRecordByStudent({});
+      setAttendanceByStudent(buildDefaultAttendanceMap(filteredStudents));
+      setInfoMessage("");
+      return;
+    }
 
-        if (currentStatus === undefined || currentStatus === null || currentStatus === "") {
-          next[student.id] = "Present";
+    let isCurrentRequest = true;
+
+    const loadExistingAttendance = async () => {
+      setIsLoadingExistingAttendance(true);
+      setError("");
+      setSuccess("");
+      setInfoMessage("");
+
+      try {
+        const response = await API.get("/api/attendance", {
+          headers: getAuthHeaders(),
+        });
+
+        const records = Array.isArray(response?.data) ? response.data : [];
+        const currentStudentIds = new Set(
+          filteredStudents.map((student) => Number(student.id))
+        );
+        const nextRecordByStudent = {};
+
+        records.forEach((record) => {
+          if (record.date !== selectedDate) {
+            return;
+          }
+
+          const studentId = Number(record.student_id);
+
+          if (!currentStudentIds.has(studentId)) {
+            return;
+          }
+
+          nextRecordByStudent[studentId] = {
+            id: record.id,
+            status: record.status,
+          };
+        });
+
+        const nextAttendanceByStudent = buildDefaultAttendanceMap(filteredStudents);
+
+        filteredStudents.forEach((student) => {
+          const existingRecord = nextRecordByStudent[Number(student.id)];
+
+          if (existingRecord) {
+            nextAttendanceByStudent[student.id] = existingRecord.status;
+          }
+        });
+
+        if (!isCurrentRequest) {
+          return;
         }
-      });
 
-      return next;
-    });
-  }, [filteredStudents]);
+        setAttendanceRecordByStudent(nextRecordByStudent);
+        setAttendanceByStudent(nextAttendanceByStudent);
+
+        if (Object.keys(nextRecordByStudent).length > 0) {
+          setInfoMessage("Attendance already marked for this date");
+        }
+      } catch (err) {
+        if (isCurrentRequest) {
+          setError(
+            err?.response?.data?.message ||
+              "Unable to load saved attendance right now."
+          );
+        }
+      } finally {
+        if (isCurrentRequest) {
+          setIsLoadingExistingAttendance(false);
+        }
+      }
+    };
+
+    loadExistingAttendance();
+
+    return () => {
+      isCurrentRequest = false;
+    };
+  }, [filteredStudents, hasExactFilterSelection, selectedDate, students.length]);
 
   const handleAttendanceChange = (studentId, status) => {
     setAttendanceByStudent((current) => ({
@@ -192,9 +332,22 @@ function Attendance() {
     setIsSubmitting(true);
     setError("");
     setSuccess("");
+    setInfoMessage("");
 
     if (!selectedDate) {
       setError("Please choose a date before submitting attendance.");
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (isTeacher && selectedDate !== getTodayDateString()) {
+      setError("Attendance can only be marked for today's date");
+      setIsSubmitting(false);
+      return;
+    }
+
+    if (!hasExactFilterSelection) {
+      setError("Please choose a class and section before saving attendance.");
       setIsSubmitting(false);
       return;
     }
@@ -217,48 +370,100 @@ function Attendance() {
       return;
     }
 
-    const submissionResults = await Promise.allSettled(
-      filteredStudents.map((student) =>
-        API.post(
-          "/api/attendance",
-          {
-            student_id: student.id,
-            date: selectedDate,
-            period: DEFAULT_PERIOD,
-            status: attendanceByStudent[student.id],
-          },
-          {
-            headers: getAuthHeaders(),
-          }
-        )
-      )
-    );
+    const submissionRequests = filteredStudents.map((student) => {
+      const existingRecord = attendanceRecordByStudent[Number(student.id)];
+      const payload = {
+        student_id: student.id,
+        date: selectedDate,
+        period: DEFAULT_PERIOD,
+        status: attendanceByStudent[student.id],
+      };
 
+      const request = existingRecord
+        ? API.put(
+            `/api/attendance/${existingRecord.id}`,
+            {
+              status: attendanceByStudent[student.id],
+            },
+            {
+              headers: getAuthHeaders(),
+            }
+          )
+        : API.post("/api/attendance", payload, {
+            headers: getAuthHeaders(),
+          });
+
+      return {
+        studentId: student.id,
+        isExisting: Boolean(existingRecord),
+        request,
+      };
+    });
+
+    const submissionResults = await Promise.allSettled(
+      submissionRequests.map((item) => item.request)
+    );
     const successCount = submissionResults.filter(
       (result) => result.status === "fulfilled"
     ).length;
     const failedResults = submissionResults.filter(
       (result) => result.status === "rejected"
     );
+    const createCount = submissionRequests.filter((item, index) => {
+      return !item.isExisting && submissionResults[index].status === "fulfilled";
+    }).length;
+    const updateCount = submissionRequests.filter((item, index) => {
+      return item.isExisting && submissionResults[index].status === "fulfilled";
+    }).length;
 
     if (failedResults.length === 0) {
-      setSuccess(`Attendance saved for ${successCount} student(s).`);
+      const nextRecordByStudent = { ...attendanceRecordByStudent };
+
+      submissionResults.forEach((result, index) => {
+        if (result.status !== "fulfilled") {
+          return;
+        }
+
+        const recordId = result.value?.data?.id;
+
+        if (!recordId) {
+          return;
+        }
+
+        nextRecordByStudent[Number(submissionRequests[index].studentId)] = {
+          id: recordId,
+          status: attendanceByStudent[submissionRequests[index].studentId],
+        };
+      });
+
+      setAttendanceRecordByStudent(nextRecordByStudent);
+      setSuccess(
+        `Attendance saved for ${successCount} student(s): ${createCount} created, ${updateCount} updated.`
+      );
+      setInfoMessage(
+        updateCount > 0
+          ? `Attendance updated for ${updateCount} student(s).`
+          : `Attendance created for ${createCount} student(s).`
+      );
     } else {
       const failedMessages = failedResults
         .map((result) => {
-          const errorMessage =
+          const normalizedError =
             result.reason?.response?.data?.error ||
             result.reason?.response?.data?.message ||
             result.reason?.message ||
             "Unknown error";
 
-          return errorMessage;
+          return normalizedError === "Attendance already marked"
+            ? "Attendance already marked for this date"
+            : normalizedError;
         })
         .join(" | ");
 
       setError(
         `Saved ${successCount} record(s), but ${failedResults.length} failed: ${failedMessages}`
       );
+      setInfoMessage("");
     }
 
     setIsSubmitting(false);
@@ -310,7 +515,9 @@ function Attendance() {
           <div className="rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-3 text-sm text-slate-200">
             <p className="font-semibold text-white">Submitting for period 1</p>
             <p className="mt-1 text-slate-300">
-              Use the bulk submit button after reviewing the attendance selections.
+              {hasExistingAttendance
+                ? "Attendance already marked for this date"
+                : "Use the bulk submit button after reviewing the attendance selections."}
             </p>
           </div>
         </div>
@@ -324,7 +531,9 @@ function Attendance() {
                 key={card.label}
                 className="rounded-3xl border border-slate-800 bg-slate-900/80 p-4"
               >
-                <div className={`inline-flex rounded-full bg-gradient-to-r ${card.accent} px-3 py-1 text-xs font-semibold text-slate-950`}>
+                <div
+                  className={`inline-flex rounded-full bg-gradient-to-r ${card.accent} px-3 py-1 text-xs font-semibold text-slate-950`}
+                >
                   {card.label}
                 </div>
                 <div className="mt-4 flex items-center justify-between gap-3">
@@ -351,7 +560,7 @@ function Attendance() {
                 className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
               >
                 <option value="all">All classes</option>
-                {classes.map((classItem) => (
+                {sortedClasses.map((classItem) => (
                   <option key={classItem.id} value={classItem.class_name}>
                     {classItem.class_name}
                   </option>
@@ -380,7 +589,20 @@ function Attendance() {
               <input
                 type="date"
                 value={selectedDate}
-                onChange={(event) => setSelectedDate(event.target.value)}
+                min={isTeacher ? getTodayDateString() : undefined}
+                max={isTeacher ? getTodayDateString() : undefined}
+                onChange={(event) => {
+                  const nextDate = event.target.value;
+
+                  if (isTeacher && nextDate !== getTodayDateString()) {
+                    setError("Attendance can only be marked for today's date");
+                    setSelectedDate(getTodayDateString());
+                    return;
+                  }
+
+                  setError("");
+                  setSelectedDate(nextDate);
+                }}
                 className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
               />
             </label>
@@ -389,10 +611,19 @@ function Attendance() {
               <button
                 type="button"
                 onClick={handleBulkSubmit}
-                disabled={isSubmitting || isLoadingMetadata || isLoadingStudents}
+                disabled={
+                  isSubmitting ||
+                  isLoadingMetadata ||
+                  isLoadingStudents ||
+                  isLoadingExistingAttendance
+                }
                 className="w-full rounded-2xl bg-cyan-500 px-4 py-3 font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {isSubmitting ? "Submitting..." : "Bulk Submit Attendance"}
+                {isSubmitting
+                  ? "Saving..."
+                  : hasExistingAttendance
+                    ? "Save Attendance Changes"
+                    : "Bulk Submit Attendance"}
               </button>
             </div>
           </div>
@@ -410,6 +641,12 @@ function Attendance() {
           </div>
         ) : null}
 
+        {infoMessage ? (
+          <div className="rounded-2xl border border-cyan-500/40 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-50">
+            {infoMessage}
+          </div>
+        ) : null}
+
         <div className="overflow-hidden rounded-3xl border border-slate-800 bg-slate-900/80">
           <div className="overflow-x-auto">
             <table className="min-w-full text-left text-sm text-slate-100">
@@ -421,7 +658,7 @@ function Attendance() {
                 </tr>
               </thead>
               <tbody>
-                {isLoadingStudents || isLoadingMetadata ? (
+                {isLoadingStudents || isLoadingMetadata || isLoadingExistingAttendance ? (
                   Array.from({ length: 5 }).map((_, index) => (
                     <tr key={index} className="border-t border-slate-800">
                       <td className="px-4 py-4">

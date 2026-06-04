@@ -12,7 +12,7 @@ const navSections = [
       { label: "Classes", path: "/classes" },
       { label: "Teachers", path: "/teachers" },
       { label: "Subjects", path: "/subjects" },
-      { label: "Teacher Assignments", path: "/teacher-assignments" },
+      { label: "Teacher Subjects", path: "/teacher-subjects" },
       { label: "Attendance", path: "/attendance" },
       { label: "Results", path: "/results" },
       { label: "Report Card", path: "/report-card" },
@@ -21,7 +21,13 @@ const navSections = [
   },
   {
     title: "Administration",
-    items: [{ label: "Staff Posts", path: "/staff-posts" }],
+    items: [
+      { label: "Staff Posts", path: "/staff-posts" },
+      {
+        label: "Administrative Charges",
+        path: "/administrative-charges",
+      },
+    ],
   },
   {
     title: "Finance",

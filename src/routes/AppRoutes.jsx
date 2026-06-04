@@ -13,6 +13,8 @@ import Results from "../pages/results/Results";
 import ReportCard from "../pages/reportCard/ReportCard";
 import Timetable from "../pages/timetable/Timetable";
 import StaffPosts from "../pages/staffPosts/StaffPosts";
+import AdministrativeCharges from "../pages/administrativeCharges/AdministrativeCharges";
+import TeacherAdministrativeCharges from "../pages/teacherAdministrativeCharges/TeacherAdministrativeCharges";
 
 function AppRoutes() {
   return (
@@ -64,7 +66,7 @@ function AppRoutes() {
           }
         />
         <Route
-          path="/teacher-assignments"
+          path="/teacher-subjects"
           element={
             <ProtectedRoute>
               <TeacherAssignments />
@@ -109,6 +111,24 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <StaffPosts />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/administrative-charges"
+          element={
+            <ProtectedRoute>
+              <AdministrativeCharges />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/teacher-administrative-charges"
+          element={
+            <ProtectedRoute>
+              <TeacherAdministrativeCharges />
             </ProtectedRoute>
           }
         />

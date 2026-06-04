@@ -107,20 +107,33 @@ function Classes() {
     return errors;
   }, [classSections, editingId, formData]);
 
-  const filteredClassSections = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    const filteredClassSections = useMemo(() => {
+      const query = search.trim().toLowerCase();
 
-    if (!query) {
-      return classSections;
-    }
+      if (!query) {
+        return classSections;
+      }
 
-    return classSections.filter((item) => {
-      return (
-        item.class_name?.toLowerCase().includes(query) ||
-        item.section_name?.toLowerCase().includes(query)
-      );
+      return classSections.filter((item) => {
+        return (
+          item.class_name?.toLowerCase().includes(query) ||
+          item.section_name?.toLowerCase().includes(query)
+        );
+      });
+    }, [classSections, search]);
+
+  const sortedClassSections = useMemo(() => {
+    return [...filteredClassSections].sort((a, b) => {
+      const classCompare =
+        Number(a.class_name) - Number(b.class_name);
+
+      if (classCompare !== 0) {
+        return classCompare;
+      }
+
+      return a.section_name.localeCompare(b.section_name);
     });
-  }, [classSections, search]);
+  }, [filteredClassSections]);
 
   const openAddModal = () => {
     setEditingId(null);
@@ -348,7 +361,7 @@ function Classes() {
                     </td>
                   </tr>
                 ) : (
-                  filteredClassSections.map((item) => (
+                  sortedClassSections.map((item) => (
                     <tr
                       key={item.id}
                       className="border-t border-slate-800 transition hover:bg-slate-800/60"

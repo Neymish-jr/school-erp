@@ -26,6 +26,8 @@ function Students() {
   const [formData, setFormData] = useState(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem("token");
@@ -37,7 +39,48 @@ function Students() {
       : {};
   };
 
-  const fetchClassSections = async () => {
+  const handleImport = async () => {
+    if (!importFile) {
+      alert("Please select an Excel file");
+      return;
+    }
+
+    try {
+      setIsImporting(true);
+
+      const formData = new FormData();
+
+      formData.append("file", importFile);
+
+     const response = await API.post(
+      "/api/student-import",
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      }
+    );
+
+    alert(
+      `${response.data.imported} students imported successfully`
+    );
+
+      alert(
+        `${response.data.imported} students imported successfully`
+      );
+
+      fetchStudents();
+    } catch (error) {
+      console.error(error);
+
+      alert("Import failed");
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+const fetchClassSections = async () => {
     try {
       const res = await API.get("/api/class-sections", {
         headers: getAuthHeaders(),
@@ -251,6 +294,25 @@ function Students() {
             className="inline-flex items-center justify-center rounded-2xl bg-cyan-500 px-4 py-3 font-semibold text-slate-950 transition hover:bg-cyan-400"
           >
             + Add Student
+          </button>
+        </div>
+
+        <div className="flex gap-3">
+          <input
+            type="file"
+            accept=".xlsx,.xls"
+            onChange={(e) =>
+              setImportFile(e.target.files[0])
+            }
+          />
+
+          <button
+            onClick={handleImport}
+            disabled={isImporting}
+          >
+            {isImporting
+              ? "Importing..."
+              : "Import Excel"}
           </button>
         </div>
 
