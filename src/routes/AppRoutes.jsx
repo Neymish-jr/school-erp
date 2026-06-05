@@ -15,13 +15,13 @@ import Timetable from "../pages/timetable/Timetable";
 import StaffPosts from "../pages/staffPosts/StaffPosts";
 import AdministrativeCharges from "../pages/administrativeCharges/AdministrativeCharges";
 import TeacherAdministrativeCharges from "../pages/teacherAdministrativeCharges/TeacherAdministrativeCharges";
+import TeacherProfile from "../pages/teachers/TeacherProfile";
+import ComingSoon from "../pages/comingSoon/ComingSoon";
 
 function AppRoutes() {
   return (
     <BrowserRouter>
       <Routes>
-        
-
         <Route path="/" element={<Login />} />
 
         <Route
@@ -54,6 +54,14 @@ function AppRoutes() {
           element={
             <ProtectedRoute>
               <Teachers />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/teachers/:id"
+          element={
+            <ProtectedRoute>
+              <TeacherProfile />
             </ProtectedRoute>
           }
         />
@@ -133,6 +141,54 @@ function AppRoutes() {
           }
         />
 
+        <Route
+          path="/expenses"
+          element={
+            <ProtectedRoute>
+              <ComingSoon />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/cashbook"
+          element={
+            <ProtectedRoute>
+              <ComingSoon />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/stock-register"
+          element={
+            <ProtectedRoute>
+              <ComingSoon />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/quotations"
+          element={
+            <ProtectedRoute>
+              <ComingSoon />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/activities"
+          element={
+            <ProtectedRoute>
+              <ComingSoon />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/help-support"
+          element={
+            <ProtectedRoute>
+              <div>Help & Support Section</div>
+            </ProtectedRoute>
+          }
+        />
       </Routes>
     </BrowserRouter>
   );

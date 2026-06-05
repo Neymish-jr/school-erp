@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import DashboardLayout from "../../layouts/DashboardLayout";
 import API from "../../api/axios";
 
@@ -447,14 +448,27 @@ function Teachers() {
                 ) : (
                   visibleTeachers.map((teacher) => (
                     <tr key={teacher.id} className="border-t border-slate-800 transition hover:bg-slate-800/60">
-                      <td className="px-4 py-4 font-medium text-white">{teacher.teacher_name || "—"}</td>
-                      <td className="px-4 py-4">{teacher.email || "—"}</td>
-                      <td className="px-4 py-4">{teacher.phone || "—"}</td>
-                      <td className="px-4 py-4">{teacher.subject || teacher.designation || "—"}</td>
-                      <td className="px-4 py-4">{teacher.qualification || "—"}</td>
-                      <td className="px-4 py-4">{teacher.gender || "—"}</td>
+                      <td className="px-4 py-4 font-medium text-white">
+                        <Link 
+                          to={`/teachers/${teacher.id}`}
+                          className="transition hover:text-cyan-400 hover:underline"
+                        >
+                          {teacher.teacher_name || "â€”"}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-4">{teacher.email || "â€”"}</td>
+                      <td className="px-4 py-4">{teacher.phone || "â€”"}</td>
+                      <td className="px-4 py-4">{teacher.subject || teacher.designation || "â€”"}</td>
+                      <td className="px-4 py-4">{teacher.qualification || "â€”"}</td>
+                      <td className="px-4 py-4">{teacher.gender || "â€”"}</td>
                       <td className="px-4 py-4">
                         <div className="flex flex-wrap gap-2">
+                          <Link
+                            to={`/teachers/${teacher.id}`}
+                            className="rounded-xl bg-cyan-500 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+                          >
+                            Profile
+                          </Link>
                           <button
                             type="button"
                             onClick={() => openEditModal(teacher)}

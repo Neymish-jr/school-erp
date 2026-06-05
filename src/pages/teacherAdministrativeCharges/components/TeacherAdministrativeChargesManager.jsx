@@ -6,7 +6,7 @@ const getAuthHeaders = () => {
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
-function TeacherAdministrativeChargesManager({ teacherId = null, hideHeader = false }) {
+function TeacherAdministrativeChargesManager({ teacherId = null, hideHeader = false, onAssignmentsChange }) {
   const [assignments, setAssignments] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [availableCharges, setAvailableCharges] = useState([]);
@@ -45,7 +45,11 @@ function TeacherAdministrativeChargesManager({ teacherId = null, hideHeader = fa
         : "/api/teacher-administrative-charge-assignments";
         
       const response = await API.get(endpoint, { headers: getAuthHeaders() });
-      setAssignments(response?.data?.data || []);
+      const data = response?.data?.data || [];
+      setAssignments(data);
+      if (onAssignmentsChange) {
+        onAssignmentsChange(data.filter(a => a.is_active).length);
+      }
     } catch (err) {
       setAssignments([]);
       setError(err?.response?.data?.message || "Unable to load assignments.");
