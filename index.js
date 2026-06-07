@@ -32,6 +32,7 @@ const cors = require("cors");
 const attendanceRoutes = require("./routes/attendanceRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
 const authRoutes = require("./routes/authRoutes");
+const staffPostController = require("./controllers/staffPostController");
 const studentImportRoutes = require(
   "./routes/studentImportRoutes"
 );
@@ -234,12 +235,35 @@ app.use("/api/teacher-staff-post-assignments", teacherStaffPostAssignmentRoutes)
 app.use("/", authRoutes);
 
 
-// Staff Post Management Dashboard Widgets Routes
-app.get("/api/dashboard/staff-posts/total", protect, authorize(["admin", "staff"]), staffPostController.getTotalStaffPosts);
-app.get("/api/dashboard/staff-posts/sanctioned-strength", protect, authorize(["admin", "staff"]), staffPostController.getTotalSanctionedStrength);
-app.get("/api/dashboard/staff-posts/filled-positions", protect, authorize(["admin", "staff"]), staffPostController.getFilledPositions);
-app.get("/api/dashboard/staff-posts/vacant-positions", protect, authorize(["admin", "staff"]), staffPostController.getVacantPositions);
+// Staff Post Dashboard Widgets
 
+app.get(
+  "/api/dashboard/staff-posts/total",
+  authenticate,
+  isAdmin,
+  staffPostController.getTotalStaffPosts
+);
+
+app.get(
+  "/api/dashboard/staff-posts/sanctioned-strength",
+  authenticate,
+  isAdmin,
+  staffPostController.getTotalSanctionedStrength
+);
+
+app.get(
+  "/api/dashboard/staff-posts/filled-positions",
+  authenticate,
+  isAdmin,
+  staffPostController.getFilledPositions
+);
+
+app.get(
+  "/api/dashboard/staff-posts/vacant-positions",
+  authenticate,
+  isAdmin,
+  staffPostController.getVacantPositions
+);
 
 app.use("/api/v1/auth", authRoutes);
 app.use(
