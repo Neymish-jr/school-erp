@@ -270,11 +270,9 @@ function TeacherAssignments() {
       <div className="space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-cyan-600">
-              <h1>
-                TEACHER SUBJECTS
-              </h1>
-            </p>
+            <h1 className="text-sm uppercase tracking-[0.3em] text-cyan-600">
+              TEACHER SUBJECTS
+            </h1>
 
             <p className="mt-2 max-w-2xl text-slate-300">
               Assign subjects to teachers for each class and section. These allocations are used for attendance, results, and timetable generation.

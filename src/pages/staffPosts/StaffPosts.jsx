@@ -3,6 +3,7 @@ import { Icon } from "@iconify/react";
 import API from "../../api/axios";
 import { toast } from "react-toastify";
 import Modal from "../../components/Modal";
+import DashboardLayout from "../../layouts/DashboardLayout";
 
 const StaffPosts = () => {
   const [staffPosts, setStaffPosts] = useState([]);
@@ -18,7 +19,7 @@ const StaffPosts = () => {
     sanctioned_count: 0,
   });
   const [search, setSearch] = useState("");
-  const [filterCategory, setFilterFilterCategory] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
 
   useEffect(() => {
     fetchStaffPosts();
@@ -114,8 +115,10 @@ const StaffPosts = () => {
   if (loading) return <div className="text-center text-white">Loading...</div>;
   if (error) return <div className="text-center text-red-500">Error: {error}</div>;
 
-  return (
-    <div className="container mx-auto p-6 bg-slate-900 rounded-lg shadow-xl">
+ return (
+  <DashboardLayout>
+      <div className="container mx-auto p-6">
+      <div className="bg-slate-900 rounded-lg shadow-xl p-6">
       <h2 className="text-3xl font-bold text-cyan-400 mb-6">Staff Posts Management</h2>
 
       <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
@@ -291,8 +294,10 @@ const StaffPosts = () => {
             </button>
           </div>
         </form>
-      </Modal>
+            </Modal>
+      </div>
     </div>
+  </DashboardLayout>
   );
 };
 
