@@ -10,6 +10,7 @@ const getDashboardStats = async (req, res) => {
       `
     );
 
+    // TODO(staffing): Count only teachers WHERE status = 'active' for government-school active staff headcount.
     const totalTeachers = await pool.query(
       `
       SELECT COUNT(*) FROM teachers

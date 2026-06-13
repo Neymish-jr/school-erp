@@ -1,5 +1,9 @@
 const pool = require("../db");
 const { successResponse, errorResponse } = require("../utils/response");
+const {
+  fetchTeacherForAssignment,
+  getTeacherAssignmentEligibility,
+} = require("../utils/teacherAssignmentGuard");
 
 const getBaseAssignmentQuery = () => `
   SELECT
@@ -177,14 +181,16 @@ const getVacantStaffPosts = async (req, res) => {
     const query = `
       SELECT sp.id, sp.post_name, sp.post_code, sp.staff_category
       FROM staff_posts sp
-      WHERE sp.school_id = $1 AND sp.is_active = TRUE
-      AND NOT EXISTS (
-        SELECT 1
-        FROM teacher_staff_post_assignments tspa
-        WHERE tspa.staff_post_id = sp.id
-          AND tspa.school_id = $1
-          AND tspa.is_active = TRUE
-      )
+      WHERE sp.school_id = $1
+        AND sp.is_active = TRUE
+        AND sp.sanctioned_count > 0
+        AND (
+          SELECT COUNT(*)
+          FROM teacher_staff_post_assignments tspa
+          WHERE tspa.staff_post_id = sp.id
+            AND tspa.school_id = $1
+            AND tspa.is_active = TRUE
+        ) < sp.sanctioned_count
       ORDER BY sp.post_name ASC
     `;
     const result = await pool.query(query, [school_id]);
@@ -208,25 +214,30 @@ const createAssignment = async (req, res) => {
     const { school_id, id: assigned_by_user_id } = req.user;
     const { teacher_id, staff_post_id, assignment_start_date, remarks } = req.body;
 
-    // 1. Verify Teacher exists and belongs to school
-    const teacherCheck = await pool.query(
-      "SELECT id FROM teachers WHERE id = $1 AND school_id = $2",
-      [teacher_id, school_id]
-    );
-    if (teacherCheck.rowCount === 0) {
-      return errorResponse(res, { message: "Teacher not found in your school", error: "Validation Error", status: 400 });
+    const teacherRow = await fetchTeacherForAssignment(pool, teacher_id, school_id);
+    const eligibility = getTeacherAssignmentEligibility(teacherRow);
+    if (!eligibility.eligible) {
+      return errorResponse(res, {
+        message: eligibility.message,
+        error: eligibility.error,
+        status: teacherRow ? 409 : 400,
+      });
     }
 
     // 2. Verify Staff Post exists and belongs to school
     const staffPostCheck = await pool.query(
-      "SELECT id FROM staff_posts WHERE id = $1 AND school_id = $2",
+      "SELECT id, sanctioned_count FROM staff_posts WHERE id = $1 AND school_id = $2",
       [staff_post_id, school_id]
     );
     if (staffPostCheck.rowCount === 0) {
       return errorResponse(res, { message: "Staff post not found in your school", error: "Validation Error", status: 400 });
     }
 
+    const sanctionedCount = Number(staffPostCheck.rows[0].sanctioned_count) || 0;
+
     // 3. Check for active assignment for the teacher (unique_active_post_per_teacher_per_school)
+    // TODO(staffing): After status-change auto-relieve is implemented, filled/vacant counts should
+    // only treat active teachers as holding designations.
     const activeTeacherAssignmentCheck = await pool.query(
       "SELECT id FROM teacher_staff_post_assignments WHERE teacher_id = $1 AND school_id = $2 AND is_active = TRUE",
       [teacher_id, school_id]
@@ -239,14 +250,16 @@ const createAssignment = async (req, res) => {
       });
     }
 
-    // 4. Check for active assignment for the staff post (unique_active_teacher_per_post_per_school)
-    const activeStaffPostAssignmentCheck = await pool.query(
-      "SELECT id FROM teacher_staff_post_assignments WHERE staff_post_id = $1 AND school_id = $2 AND is_active = TRUE",
+    // 4. Enforce sanctioned strength — allow multiple active assignments up to sanctioned_count
+    const activeStaffPostAssignmentCount = await pool.query(
+      "SELECT COUNT(*) FROM teacher_staff_post_assignments WHERE staff_post_id = $1 AND school_id = $2 AND is_active = TRUE",
       [staff_post_id, school_id]
     );
-    if (activeStaffPostAssignmentCheck.rowCount > 0) {
+    const activeAssignmentsForPost = Number(activeStaffPostAssignmentCount.rows[0].count) || 0;
+
+    if (activeAssignmentsForPost >= sanctionedCount) {
       return errorResponse(res, {
-        message: "This staff post is already assigned to an active teacher.",
+        message: "This staff post has reached its sanctioned strength. Relieve an existing assignment before assigning another teacher.",
         error: "Conflict",
         status: 409,
       });
@@ -281,13 +294,6 @@ const createAssignment = async (req, res) => {
             return errorResponse(res, {
                 message: "This teacher is already assigned to an active staff post.",
                 error: "Duplicate Active Assignment for Teacher",
-                status: 409
-            });
-        }
-        if (err.constraint === "unique_active_teacher_per_post_per_school") {
-            return errorResponse(res, {
-                message: "This staff post is already assigned to an active teacher.",
-                error: "Duplicate Active Assignment for Staff Post",
                 status: 409
             });
         }

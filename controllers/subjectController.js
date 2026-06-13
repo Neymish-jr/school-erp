@@ -274,6 +274,7 @@ const deleteSubject = async (req, res) => {
       SELECT id
       FROM teacher_subject_assignments
       WHERE subject_id = $1
+        AND is_active = TRUE
       LIMIT 1
       `,
       [id]

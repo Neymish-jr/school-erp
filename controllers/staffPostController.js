@@ -132,6 +132,8 @@ exports.getTotalSanctionedStrength = asyncHandler(async (req, res) => {
 
 exports.getFilledPositions = asyncHandler(async (req, res) => {
   const { school_id } = req.user;
+  // TODO(staffing): Exclude assignments held by non-active teachers (deputation, transferred, retired, resigned)
+  // when calculating filled positions. Join teachers.status = 'active'.
   const { rows } = await pool.query("SELECT COUNT(*) FROM teacher_staff_post_assignments WHERE is_active = TRUE AND school_id = $1", [school_id]);
   res.status(200).json({
     status: "success",
@@ -142,6 +144,7 @@ exports.getFilledPositions = asyncHandler(async (req, res) => {
 exports.getVacantPositions = asyncHandler(async (req, res) => {
   const { school_id } = req.user;
   const { rows: totalSanctioned } = await pool.query("SELECT SUM(sanctioned_count) FROM staff_posts WHERE school_id = $1", [school_id]);
+  // TODO(staffing): Align filled count with active teachers only before computing vacancy.
   const { rows: filledPositions } = await pool.query("SELECT COUNT(*) FROM teacher_staff_post_assignments WHERE is_active = TRUE AND school_id = $1", [school_id]);
 
   const total = parseInt(totalSanctioned[0].sum || 0);

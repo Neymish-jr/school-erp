@@ -19,6 +19,7 @@ router.get(
         `
       );
 
+      // TODO(staffing): Replace user-role count with teachers WHERE status = 'active'.
       const teachers = await pool.query(
         `
         SELECT COUNT(*) FROM users

@@ -1,71 +1,76 @@
 const pool = require("../db");
 const { successResponse, errorResponse } = require("../utils/response");
+const {
+  fetchTeacherForAssignment,
+  getTeacherAssignmentEligibility,
+} = require("../utils/teacherAssignmentGuard");
 
 const normalizeAssignmentPayload = (payload = {}) => ({
   teacher_id: Number(payload.teacher_id),
   class_section_id: Number(payload.class_section_id),
   subject_id: Number(payload.subject_id),
+  assignment_start_date: payload.assignment_start_date,
 });
 
-const buildAssignmentsQuery = (teacherId = null) => {
-  let query = `
-    SELECT
-      tsa.id,
-      tsa.teacher_id,
-      tsa.class_section_id,
-      tsa.subject_id,
-      tsa.created_at,
-      t.teacher_name,
-      cs.class_name,
-      cs.section_name,
-      s.subject_name,
-      s.subject_code
-    FROM teacher_subject_assignments tsa
-    JOIN teachers t ON t.id = tsa.teacher_id
-    JOIN class_sections cs ON cs.id = tsa.class_section_id
-    JOIN subjects s ON s.id = tsa.subject_id
-  `;
+const shouldIncludeHistory = (query = {}) =>
+  query.include_history === "true" || query.include_history === true;
 
+const getBaseAssignmentQuery = () => `
+  SELECT
+    tsa.id,
+    tsa.teacher_id,
+    tsa.class_section_id,
+    tsa.subject_id,
+    tsa.assignment_start_date,
+    tsa.assignment_end_date,
+    tsa.is_active,
+    tsa.created_at,
+    tsa.updated_at,
+    t.teacher_name,
+    cs.class_name,
+    cs.section_name,
+    s.subject_name,
+    s.subject_code
+  FROM teacher_subject_assignments tsa
+  JOIN teachers t ON t.id = tsa.teacher_id
+  JOIN class_sections cs ON cs.id = tsa.class_section_id
+  JOIN subjects s ON s.id = tsa.subject_id
+`;
+
+const buildAssignmentsQuery = (options = {}) => {
+  const { teacherId = null, activeOnly = true } = options;
+  let query = getBaseAssignmentQuery();
   const params = [];
+  const conditions = [];
 
   if (teacherId !== null) {
-    query += ` WHERE tsa.teacher_id = $1`;
     params.push(teacherId);
+    conditions.push(`tsa.teacher_id = $${params.length}`);
   }
 
-  query += ` ORDER BY t.teacher_name ASC, cs.class_name ASC, cs.section_name ASC, s.subject_name ASC`;
+  if (activeOnly) {
+    conditions.push("tsa.is_active = TRUE");
+  }
+
+  if (conditions.length > 0) {
+    query += ` WHERE ${conditions.join(" AND ")}`;
+  }
+
+  query += ` ORDER BY tsa.is_active DESC, tsa.assignment_start_date DESC, t.teacher_name ASC, cs.class_name ASC, cs.section_name ASC, s.subject_name ASC`;
 
   return { query, params };
 };
 
 const getAssignments = async (req, res) => {
   try {
-    const result = await pool.query(`
-      SELECT
-        tsa.id,
-        tsa.teacher_id,
-        t.teacher_name,
-        tsa.subject_id,
-        s.subject_name,
-        tsa.class_section_id,
-        cs.class_name,
-        cs.section_name
-      FROM teacher_subject_assignments tsa
-      JOIN teachers t ON t.id = tsa.teacher_id
-      JOIN subjects s ON s.id = tsa.subject_id
-      JOIN class_sections cs ON cs.id = tsa.class_section_id
-      ORDER BY
-        LENGTH(cs.class_name),
-        cs.class_name,
-        cs.section_name,
-        s.subject_name
-    `);
+    const activeOnly = !shouldIncludeHistory(req.query);
+    const { query, params } = buildAssignmentsQuery({ activeOnly });
+    const result = await pool.query(query, params);
 
     return successResponse(res, {
       message: "Assignments fetched successfully",
       data: result.rows,
     });
-
   } catch (err) {
     console.error(err);
 
@@ -81,6 +86,7 @@ const getAssignmentsByTeacherId = async (req, res) => {
   try {
     const { teacherId } = req.params;
     const { school_id } = req.user;
+    const activeOnly = !shouldIncludeHistory(req.query);
 
     const teacherCheck = await pool.query(
       `
@@ -99,7 +105,10 @@ const getAssignmentsByTeacherId = async (req, res) => {
       });
     }
 
-    const { query, params } = buildAssignmentsQuery(Number(teacherId));
+    const { query, params } = buildAssignmentsQuery({
+      teacherId: Number(teacherId),
+      activeOnly,
+    });
     const result = await pool.query(query, params);
 
     return successResponse(res, {
@@ -142,7 +151,11 @@ const getAssignmentsForTeacher = async (req, res) => {
       });
     }
 
-    const { query, params } = buildAssignmentsQuery(Number(teacherId));
+    const activeOnly = !shouldIncludeHistory(req.query);
+    const { query, params } = buildAssignmentsQuery({
+      teacherId: Number(teacherId),
+      activeOnly,
+    });
     const result = await pool.query(query, params);
 
     return successResponse(res, {
@@ -161,7 +174,19 @@ const getAssignmentsForTeacher = async (req, res) => {
 
 const createAssignment = async (req, res) => {
   try {
-    const { teacher_id, class_section_id, subject_id } = normalizeAssignmentPayload(req.body);
+    const { teacher_id, class_section_id, subject_id, assignment_start_date } =
+      normalizeAssignmentPayload(req.body);
+    const schoolId = req.user?.school_id || null;
+
+    const teacherRow = await fetchTeacherForAssignment(pool, teacher_id, schoolId);
+    const eligibility = getTeacherAssignmentEligibility(teacherRow);
+    if (!eligibility.eligible) {
+      return errorResponse(res, {
+        message: eligibility.message,
+        error: eligibility.error,
+        status: teacherRow ? 409 : 400,
+      });
+    }
 
     const duplicate = await pool.query(
       `
@@ -170,36 +195,44 @@ const createAssignment = async (req, res) => {
       WHERE teacher_id = $1
         AND class_section_id = $2
         AND subject_id = $3
+        AND is_active = TRUE
       `,
       [teacher_id, class_section_id, subject_id]
     );
 
     if (duplicate.rowCount > 0) {
       return errorResponse(res, {
-        message: "This teacher is already assigned to this subject for this class section",
-        error: "Duplicate teacher subject assignment",
+        message: "This teacher is already actively assigned to this subject for this class section",
+        error: "Duplicate active teacher subject assignment",
         status: 409,
       });
     }
 
     const result = await pool.query(
       `
-      INSERT INTO teacher_subject_assignments (teacher_id, class_section_id, subject_id)
-      VALUES ($1, $2, $3)
-      RETURNING id, teacher_id, class_section_id, subject_id, created_at
+      INSERT INTO teacher_subject_assignments (
+        teacher_id,
+        class_section_id,
+        subject_id,
+        assignment_start_date,
+        is_active
+      )
+      VALUES ($1, $2, $3, $4, TRUE)
+      RETURNING id, teacher_id, class_section_id, subject_id, assignment_start_date, assignment_end_date, is_active, created_at, updated_at
       `,
-      [teacher_id, class_section_id, subject_id]
+      [teacher_id, class_section_id, subject_id, assignment_start_date]
     );
 
     return successResponse(res, {
       message: "Teacher subject assignment created successfully",
       data: result.rows[0],
+      status: 201,
     });
   } catch (err) {
     if (err?.code === "23505") {
       return errorResponse(res, {
-        message: "This teacher is already assigned to this subject for this class section",
-        error: "Duplicate teacher subject assignment",
+        message: "This teacher is already actively assigned to this subject for this class section",
+        error: "Duplicate active teacher subject assignment",
         status: 409,
       });
     }
@@ -221,34 +254,47 @@ const createAssignment = async (req, res) => {
   }
 };
 
-const deleteAssignment = async (req, res) => {
+const relieveAssignment = async (req, res) => {
   try {
     const { id } = req.params;
+    const { assignment_end_date } = req.body;
+
     const result = await pool.query(
       `
-      DELETE FROM teacher_subject_assignments
-      WHERE id = $1
-      RETURNING id
+      UPDATE teacher_subject_assignments
+      SET is_active = FALSE,
+          assignment_end_date = $1,
+          updated_at = NOW()
+      WHERE id = $2 AND is_active = TRUE
+      RETURNING id, teacher_id, class_section_id, subject_id, assignment_start_date, assignment_end_date, is_active, created_at, updated_at
       `,
-      [id]
+      [assignment_end_date, id]
     );
 
     if (result.rowCount === 0) {
       return errorResponse(res, {
-        message: "Teacher subject assignment not found",
-        error: "Not found",
+        message: "Active assignment not found or already relieved",
+        error: "Not found or already inactive",
         status: 404,
       });
     }
 
     return successResponse(res, {
-      message: "Teacher subject assignment deleted successfully",
-      data: { id },
+      message: "Teacher relieved from subject successfully",
+      data: result.rows[0],
     });
   } catch (err) {
+    if (err?.code === "23514") {
+      return errorResponse(res, {
+        message: "Assignment end date must be on or after the start date",
+        error: "Invalid assignment dates",
+        status: 400,
+      });
+    }
+
     console.error(err);
     return errorResponse(res, {
-      message: "Error deleting teacher subject assignment",
+      message: "Error relieving teacher from subject",
       error: err.message,
       status: 500,
     });
@@ -260,5 +306,5 @@ module.exports = {
   getAssignmentsByTeacherId,
   getAssignmentsForTeacher,
   createAssignment,
-  deleteAssignment,
+  relieveAssignment,
 };

@@ -28,6 +28,7 @@ const staffPostRoutes = require("./routes/staffPostRoutes");
 const administrativeChargeRoutes = require("./routes/administrativeChargeRoutes");
 const teacherAdministrativeChargeAssignmentRoutes = require("./routes/teacherAdministrativeChargeAssignmentRoutes");
 const teacherStaffPostAssignmentRoutes = require("./routes/teacherStaffPostAssignmentRoutes");
+const staffServiceHistoryRoutes = require("./routes/staffServiceHistoryRoutes");
 const cors = require("cors");
 const attendanceRoutes = require("./routes/attendanceRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
@@ -121,8 +122,15 @@ pool.query(`
     teacher_id INTEGER NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
     class_section_id INTEGER NOT NULL REFERENCES class_sections(id) ON DELETE CASCADE,
     subject_id INTEGER NOT NULL REFERENCES subjects(id) ON DELETE CASCADE,
+    assignment_start_date DATE NOT NULL DEFAULT CURRENT_DATE,
+    assignment_end_date DATE NULL,
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT NOW(),
-    CONSTRAINT teacher_subject_assignments_unique UNIQUE (teacher_id, class_section_id, subject_id)
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    CONSTRAINT chk_teacher_subject_assignment_dates CHECK (
+      assignment_end_date IS NULL
+      OR assignment_end_date >= assignment_start_date
+    )
   )
 `).catch((err) => {
   console.error("Failed to initialize teacher_subject_assignments table", err);
@@ -133,6 +141,134 @@ pool.query(`
   ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW()
 `).catch((err) => {
   console.error("Failed to add created_at to teacher_subject_assignments table", err);
+});
+
+pool.query(`
+  ALTER TABLE IF EXISTS teacher_subject_assignments
+  ADD COLUMN IF NOT EXISTS is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  ADD COLUMN IF NOT EXISTS assignment_start_date DATE,
+  ADD COLUMN IF NOT EXISTS assignment_end_date DATE NULL,
+  ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+`).catch((err) => {
+  console.error("Failed to add lifecycle columns to teacher_subject_assignments table", err);
+});
+
+pool.query(`
+  UPDATE teacher_subject_assignments
+  SET assignment_start_date = COALESCE(DATE(created_at), CURRENT_DATE)
+  WHERE assignment_start_date IS NULL
+`).catch((err) => {
+  console.error("Failed to backfill assignment_start_date on teacher_subject_assignments", err);
+});
+
+pool.query(`
+  ALTER TABLE IF EXISTS teacher_subject_assignments
+  ALTER COLUMN assignment_start_date SET NOT NULL
+`).catch((err) => {
+  console.error("Failed to set assignment_start_date NOT NULL on teacher_subject_assignments", err);
+});
+
+pool.query(`
+  ALTER TABLE IF EXISTS teacher_subject_assignments
+  DROP CONSTRAINT IF EXISTS teacher_subject_assignments_unique
+`).catch((err) => {
+  console.error("Failed to drop legacy unique constraint on teacher_subject_assignments", err);
+});
+
+pool.query(`
+  CREATE UNIQUE INDEX IF NOT EXISTS unique_active_teacher_subject_assignment
+  ON teacher_subject_assignments (teacher_id, class_section_id, subject_id)
+  WHERE is_active = TRUE
+`).catch((err) => {
+  console.error("Failed to create active assignment unique index on teacher_subject_assignments", err);
+});
+
+pool.query(`
+  ALTER TABLE IF EXISTS teacher_subject_assignments
+  DROP CONSTRAINT IF EXISTS chk_teacher_subject_assignment_dates
+`).catch(() => {});
+
+pool.query(`
+  ALTER TABLE IF EXISTS teacher_subject_assignments
+  ADD CONSTRAINT chk_teacher_subject_assignment_dates CHECK (
+    assignment_end_date IS NULL
+    OR assignment_end_date >= assignment_start_date
+  )
+`).catch((err) => {
+  console.error("Failed to add date check constraint on teacher_subject_assignments", err);
+});
+
+pool.query(`
+  CREATE TABLE IF NOT EXISTS staff_service_history (
+    id SERIAL PRIMARY KEY,
+    school_id INTEGER NOT NULL REFERENCES schools(id) ON DELETE RESTRICT,
+    teacher_id INTEGER NOT NULL REFERENCES teachers(id) ON DELETE RESTRICT,
+    event_type VARCHAR(40) NOT NULL,
+    event_date DATE NOT NULL,
+    effective_date DATE NOT NULL,
+    end_date DATE NULL,
+    from_status VARCHAR(20) NULL,
+    to_status VARCHAR(20) NULL,
+    staff_post_id INTEGER NULL REFERENCES staff_posts(id) ON DELETE SET NULL,
+    staff_post_assignment_id INTEGER NULL,
+    administrative_charge_id INTEGER NULL REFERENCES administrative_charges(id) ON DELETE SET NULL,
+    admin_charge_assignment_id INTEGER NULL,
+    subject_id INTEGER NULL REFERENCES subjects(id) ON DELETE SET NULL,
+    class_section_id INTEGER NULL REFERENCES class_sections(id) ON DELETE SET NULL,
+    subject_assignment_id INTEGER NULL,
+    from_school_id INTEGER NULL REFERENCES schools(id) ON DELETE SET NULL,
+    to_school_id INTEGER NULL REFERENCES schools(id) ON DELETE SET NULL,
+    deputation_organisation VARCHAR(255) NULL,
+    order_number VARCHAR(100) NULL,
+    order_date DATE NULL,
+    remarks TEXT NULL,
+    recorded_by_user_id INTEGER NULL REFERENCES users(id) ON DELETE SET NULL,
+    source VARCHAR(30) NOT NULL DEFAULT 'workflow',
+    source_workflow VARCHAR(60) NULL,
+    related_event_id INTEGER NULL REFERENCES staff_service_history(id) ON DELETE SET NULL,
+    supersedes_event_id INTEGER NULL REFERENCES staff_service_history(id) ON DELETE SET NULL,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
+    CONSTRAINT chk_service_history_dates CHECK (
+      end_date IS NULL OR end_date >= effective_date
+    ),
+    CONSTRAINT chk_service_history_event_type CHECK (
+      event_type IN (
+        'joining', 'transfer_out', 'transfer_in', 'deputation_out', 'deputation_in',
+        'promotion', 'designation_assigned', 'designation_relieved',
+        'admin_charge_assigned', 'admin_charge_relieved',
+        'subject_assigned', 'subject_relieved',
+        'retirement', 'resignation', 'reinstatement'
+      )
+    ),
+    CONSTRAINT chk_service_history_source CHECK (
+      source IN ('workflow', 'manual', 'migration', 'system')
+    )
+  )
+`).catch((err) => {
+  console.error("Failed to initialize staff_service_history table", err);
+});
+
+pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_staff_service_history_teacher_timeline
+  ON staff_service_history (school_id, teacher_id, effective_date DESC, id DESC)
+`).catch((err) => {
+  console.error("Failed to create staff_service_history teacher timeline index", err);
+});
+
+pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_staff_service_history_event_type
+  ON staff_service_history (teacher_id, event_type, effective_date DESC)
+`).catch((err) => {
+  console.error("Failed to create staff_service_history event type index", err);
+});
+
+pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_staff_service_history_migration_dedup
+  ON staff_service_history (source, source_workflow, ((metadata->>'source_record_id')))
+  WHERE source = 'migration'
+`).catch((err) => {
+  console.error("Failed to create staff_service_history migration dedup index", err);
 });
 
 pool.query(`
@@ -232,6 +368,7 @@ app.use("/api/staff-posts", staffPostRoutes);
 app.use("/api/administrative-charges", administrativeChargeRoutes);
 app.use("/api/teacher-administrative-charge-assignments", teacherAdministrativeChargeAssignmentRoutes);
 app.use("/api/teacher-staff-post-assignments", teacherStaffPostAssignmentRoutes);
+app.use("/api/staff-service-history", staffServiceHistoryRoutes);
 app.use("/", authRoutes);
 
 

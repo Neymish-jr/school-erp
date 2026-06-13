@@ -1,5 +1,9 @@
 const pool = require("../db");
 const { successResponse, errorResponse } = require("../utils/response");
+const {
+  fetchTeacherForAssignment,
+  getTeacherAssignmentEligibility,
+} = require("../utils/teacherAssignmentGuard");
 
 // Helper to build base SELECT query for assignments
 const getBaseAssignmentQuery = () => `
@@ -128,13 +132,14 @@ const createAssignment = async (req, res) => {
     const { school_id, id: assigned_by_user_id } = req.user;
     const { teacher_id, administrative_charge_id, academic_year, remarks, is_additional_charge } = req.body;
     
-    // 1. Verify Teacher exists and belongs to school
-    const teacherCheck = await pool.query(
-      "SELECT id FROM teachers WHERE id = $1 AND school_id = $2",
-      [teacher_id, school_id]
-    );
-    if (teacherCheck.rowCount === 0) {
-      return errorResponse(res, { message: "Teacher not found in your school", error: "Validation Error", status: 400 });
+    const teacherRow = await fetchTeacherForAssignment(pool, teacher_id, school_id);
+    const eligibility = getTeacherAssignmentEligibility(teacherRow);
+    if (!eligibility.eligible) {
+      return errorResponse(res, {
+        message: eligibility.message,
+        error: eligibility.error,
+        status: teacherRow ? 409 : 400,
+      });
     }
     
     // 2. Verify Administrative Charge exists, is active, and belongs to school

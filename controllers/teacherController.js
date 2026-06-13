@@ -22,9 +22,10 @@ const createTeacher = async (req, res) => {
       phone,
       age,
       gender,
-      school_id
+      school_id,
+      status
     )
-    VALUES ($1, $2, $3, $4, $5, $6)
+    VALUES ($1, $2, $3, $4, $5, $6, $7)
     RETURNING *
     `,
     [
@@ -33,7 +34,8 @@ const createTeacher = async (req, res) => {
       phone,
       age,
       gender,
-      req.user.school_id
+      req.user.school_id,
+      "active"
     ]
   );
 
@@ -142,8 +144,25 @@ const updateTeacher = async (req, res) => {
     phone,
     subject,
     qualification,
-    gender
+    gender,
+    status
   } = req.body;
+
+  const existingResult = await pool.query(
+    `
+    SELECT *
+    FROM teachers
+    WHERE id = $1
+    AND school_id = $2
+    `,
+    [id, req.user.school_id]
+  );
+
+  if (existingResult.rows.length === 0) {
+    throw new AppError(404, "Teacher not found");
+  }
+
+  const existing = existingResult.rows[0];
 
   const result = await pool.query(
     `
@@ -154,26 +173,24 @@ const updateTeacher = async (req, res) => {
       phone = $3,
       subject = $4,
       qualification = $5,
-      gender = $6
-    WHERE id = $7
-    AND school_id = $8
+      gender = $6,
+      status = $7
+    WHERE id = $8
+    AND school_id = $9
     RETURNING *
     `,
     [
-      teacher_name,
-      email,
-      phone,
-      subject,
-      qualification,
-      gender,
+      teacher_name ?? existing.teacher_name,
+      email !== undefined ? email : existing.email,
+      phone ?? existing.phone,
+      subject !== undefined ? subject : existing.subject,
+      qualification !== undefined ? qualification : existing.qualification,
+      gender ?? existing.gender,
+      status ?? existing.status,
       id,
       req.user.school_id
     ]
   );
-
-  if (result.rows.length === 0) {
-    throw new AppError(404, "Teacher not found");
-  }
 
   return successResponse(res, {
     message: "Teacher updated successfully",
@@ -214,6 +231,11 @@ const deleteTeacher = async (req, res) => {
 
   } catch (err) {
 
+    console.error("DELETE TEACHER ERROR");
+    console.error(err);
+    console.error("Constraint:", err.constraint);
+    console.error("Table:", err.table);
+  
     if (err.code === "23503") {
       return errorResponse(res, {
         message: "This teacher cannot be deleted because they are linked to existing activities.",
@@ -221,7 +243,7 @@ const deleteTeacher = async (req, res) => {
         status: 409
       });
     }
-
+  
     if (err instanceof AppError) {
       return errorResponse(res, {
         message: err.message,
@@ -229,15 +251,15 @@ const deleteTeacher = async (req, res) => {
         status: err.statusCode
       });
     }
-
+  
     console.error(err);
-
+  
     return errorResponse(res, {
       message: "Error deleting teacher",
       error: err.message,
       status: 500
     });
-
+  
   }
 
 };

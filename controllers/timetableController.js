@@ -4,6 +4,10 @@ const {
   successResponse,
   errorResponse,
 } = require("../utils/response");
+const {
+  fetchTeacherForAssignment,
+  getTeacherAssignmentEligibility,
+} = require("../utils/teacherAssignmentGuard");
 
 const normalizeTimetablePayload = (
   payload = {}
@@ -75,6 +79,20 @@ const createTimetable = async (
       normalizeTimetablePayload(
         req.body
       );
+
+    const teacherRow = await fetchTeacherForAssignment(
+      pool,
+      payload.teacher_id,
+      req.user?.school_id || null
+    );
+    const eligibility = getTeacherAssignmentEligibility(teacherRow);
+    if (!eligibility.eligible) {
+      return errorResponse(res, {
+        message: eligibility.message,
+        error: eligibility.error,
+        status: teacherRow ? 409 : 400,
+      });
+    }
 
     const classPeriodConflict =
       await pool.query(

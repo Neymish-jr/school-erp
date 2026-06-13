@@ -5,6 +5,7 @@ const { authenticate } = require("../middleware/auth");
 const roleMiddleware = require("../middleware/roleMiddleware");
 const { validateRequest } = require("../middleware/validation");
 const teacherSchema = require("../validators/teacherValidator");
+const teacherUpdateSchema = teacherSchema.teacherUpdateSchema;
 
 const {
   createTeacher,
@@ -108,7 +109,7 @@ router.put(
   "/:id",
   authenticate,
   roleMiddleware("admin"),
-  validateRequest(teacherSchema),
+  validateRequest(teacherUpdateSchema),
   asyncHandler(updateTeacher)
 );
 
