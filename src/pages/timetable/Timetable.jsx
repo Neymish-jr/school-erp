@@ -13,6 +13,7 @@ import DashboardLayout from "../../layouts/DashboardLayout";
 import API from "../../api/axios";
 
 import { sortClassesNaturally } from "../../utils/sortClasses";
+import { isActiveStaffTeacher } from "../teachers/constants/teacherStatus";
 
 const DAY_ORDER = [
   "monday",
@@ -221,7 +222,10 @@ function Timetable() {
     );
   }, [teachers]);
 
-  const filteredTeachers = teachers;
+  const filteredTeachers = useMemo(
+    () => teachers.filter(isActiveStaffTeacher),
+    [teachers]
+  );
 
   const handleChange = (e) => {
     const { name, value } =

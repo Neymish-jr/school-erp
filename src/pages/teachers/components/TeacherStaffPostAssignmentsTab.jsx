@@ -4,7 +4,11 @@ import { Icon } from "@iconify/react";
 import { toast } from "react-toastify";
 import Modal from "../../../components/Modal";
 
-function TeacherStaffPostAssignmentsTab({ teacherId, onAssignmentsChange }) {
+function TeacherStaffPostAssignmentsTab({
+  teacherId,
+  onAssignmentsChange,
+  embedded = false,
+}) {
   const [assignments, setAssignments] = useState([]);
   const [currentAssignment, setCurrentAssignment] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -54,7 +58,7 @@ function TeacherStaffPostAssignmentsTab({ teacherId, onAssignmentsChange }) {
       }
       setError(
         err?.response?.data?.message ||
-          "Unable to load teacher staff post assignments."
+          "Unable to load designation assignments."
       );
     } finally {
       if (refresh) setIsRefreshing(false);
@@ -69,7 +73,7 @@ function TeacherStaffPostAssignmentsTab({ teacherId, onAssignmentsChange }) {
       });
       setVacantStaffPosts(response.data.data);
     } catch (err) {
-      toast.error("Failed to fetch vacant staff posts.");
+      toast.error("Failed to fetch vacant designations.");
       setVacantStaffPosts([]);
     }
   };
@@ -100,11 +104,11 @@ function TeacherStaffPostAssignmentsTab({ teacherId, onAssignmentsChange }) {
         { ...assignFormData, teacher_id: teacherId },
         { headers: getAuthHeaders() }
       );
-      toast.success("Staff post assigned successfully!");
+      toast.success("Designation assigned successfully!");
       setIsAssignModalOpen(false);
       fetchAssignments();
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to assign staff post.");
+      toast.error(err.response?.data?.message || "Failed to assign designation.");
     }
   };
 
@@ -125,11 +129,11 @@ function TeacherStaffPostAssignmentsTab({ teacherId, onAssignmentsChange }) {
         relieveFormData,
         { headers: getAuthHeaders() }
       );
-      toast.success("Staff post relieved successfully!");
+      toast.success("Designation relieved successfully!");
       setIsRelieveModalOpen(false);
       fetchAssignments();
     } catch (err) {
-      toast.error(err.response?.data?.message || "Failed to relieve staff post.");
+      toast.error(err.response?.data?.message || "Failed to relieve designation.");
     }
   };
 
@@ -145,15 +149,19 @@ function TeacherStaffPostAssignmentsTab({ teacherId, onAssignmentsChange }) {
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h3 className="text-lg font-bold text-white">Staff Post Assignments</h3>
+      <div
+        className={`flex items-center ${embedded ? "justify-end mb-4" : "justify-between"}`}
+      >
+        {!embedded && (
+          <h3 className="text-lg font-bold text-white">Designation Assignments</h3>
+        )}
         <button
           onClick={() => setIsAssignModalOpen(true)}
           disabled={!!currentAssignment} // Disable if an active assignment exists
           className="rounded-xl bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Icon icon="mdi:plus-circle" className="h-5 w-5 inline-block mr-1" />
-          Assign Staff Post
+          Assign Designation
         </button>
       </div>
 
@@ -169,11 +177,11 @@ function TeacherStaffPostAssignmentsTab({ teacherId, onAssignmentsChange }) {
         </div>
       ) : (
         <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-6">
-          <h4 className="text-xl font-semibold text-white mb-4">Current Assignment</h4>
+          <h4 className="text-xl font-semibold text-white mb-4">Current Designation</h4>
           {currentAssignment ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-slate-300">
               <div>
-                <p className="text-sm font-medium text-slate-400">Post Name</p>
+                <p className="text-sm font-medium text-slate-400">Designation</p>
                 <p className="text-white">{currentAssignment.post_name}</p>
               </div>
               <div>
@@ -200,7 +208,7 @@ function TeacherStaffPostAssignmentsTab({ teacherId, onAssignmentsChange }) {
               </div>
             </div>
           ) : (
-            <p className="text-slate-400">Not currently assigned to a staff post.</p>
+            <p className="text-slate-400">Not currently assigned to a designation.</p>
           )}
         </div>
       )}
@@ -212,7 +220,7 @@ function TeacherStaffPostAssignmentsTab({ teacherId, onAssignmentsChange }) {
             <table className="min-w-full text-left text-sm text-slate-100">
               <thead className="bg-slate-950/80 text-slate-200">
                 <tr>
-                  <th className="px-4 py-3 font-semibold">Post Name</th>
+                  <th className="px-4 py-3 font-semibold">Designation</th>
                   <th className="px-4 py-3 font-semibold">Staff Category</th>
                   <th className="px-4 py-3 font-semibold">Start Date</th>
                   <th className="px-4 py-3 font-semibold">End Date</th>
@@ -256,20 +264,20 @@ function TeacherStaffPostAssignmentsTab({ teacherId, onAssignmentsChange }) {
             </table>
           </div>
         ) : ( 
-          <p className="text-slate-400">No past staff post assignments found.</p>
+          <p className="text-slate-400">No past designation assignments found.</p>
         )}
       </div>
 
-      {/* Assign Staff Post Modal */}
+      {/* Assign Designation Modal */}
       <Modal
         isOpen={isAssignModalOpen}
         onClose={() => setIsAssignModalOpen(false)}
-        title="Assign Staff Post"
+        title="Assign Designation"
       >
         <form onSubmit={handleAssignSubmit} className="space-y-4">
           <div>
             <label htmlFor="staff_post_id" className="block text-sm font-medium text-slate-300">
-              Staff Post <span className="text-rose-400">*</span>
+              Designation <span className="text-rose-400">*</span>
             </label>
             <select
               id="staff_post_id"
@@ -279,7 +287,7 @@ function TeacherStaffPostAssignmentsTab({ teacherId, onAssignmentsChange }) {
               className="mt-1 block w-full p-3 border border-slate-700 rounded-md bg-slate-800 text-white"
               required
             >
-              <option value="">Select a Staff Post</option>
+              <option value="">Select a Designation</option>
               {vacantStaffPosts.map((post) => (
                 <option key={post.id} value={post.id}>
                   {post.post_name} ({post.staff_category})
@@ -287,7 +295,7 @@ function TeacherStaffPostAssignmentsTab({ teacherId, onAssignmentsChange }) {
               ))}
             </select>
             {vacantStaffPosts.length === 0 && ( 
-              <p className="text-sm text-amber-500 mt-2">No vacant staff posts available. Please create one or relieve an existing assignment.</p>
+              <p className="text-sm text-amber-500 mt-2">No vacant designations available. Please create one or relieve an existing assignment.</p>
             )}
           </div>
           <div>
@@ -340,7 +348,7 @@ function TeacherStaffPostAssignmentsTab({ teacherId, onAssignmentsChange }) {
       <Modal
         isOpen={isRelieveModalOpen}
         onClose={() => setIsRelieveModalOpen(false)}
-        title="Relieve Staff Post Assignment"
+        title="Relieve Designation Assignment"
       >
         <form onSubmit={handleRelieveSubmit} className="space-y-4">
           <p className="text-slate-300">

@@ -1,5 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
+import { Icon } from '@iconify/react';
 
 const Modal = ({ isOpen, onClose, title, children }) => {
   if (!isOpen) return null;
@@ -13,7 +14,7 @@ const Modal = ({ isOpen, onClose, title, children }) => {
             onClick={onClose}
             className="text-slate-400 hover:text-slate-200 transition-colors"
           >
-            <Icon icon="mdi:close" className="h-6 w-6" />
+            <span className="text-xl">✕</span>
           </button>
         </div>
         <div className="text-slate-100">

@@ -3,8 +3,12 @@ import { Link, useParams, useNavigate } from "react-router-dom";
 import DashboardLayout from "../../layouts/DashboardLayout";
 import API from "../../api/axios";
 import TeacherSubjectAssignmentsTab from "./components/TeacherSubjectAssignmentsTab";
-import TeacherAdministrativeChargesManager from "../teacherAdministrativeCharges/components/TeacherAdministrativeChargesManager";
-import TeacherStaffPostAssignmentsTab from "./components/TeacherStaffPostAssignmentsTab";
+import TeacherResponsibilitiesTab from "./components/TeacherResponsibilitiesTab";
+import TeacherPersonalDetailsTab from "./components/TeacherPersonalDetailsTab";
+import TeacherServiceHistoryTab from "./components/TeacherServiceHistoryTab";
+import TeacherStatusBadge from "./components/TeacherStatusBadge";
+
+const NOT_ASSIGNED_STAFF_POST = "Not Assigned";
 
 function TeacherProfile() {
   const { id } = useParams();
@@ -15,7 +19,7 @@ function TeacherProfile() {
   const [error, setError] = useState("");
   const [subjectCount, setSubjectCount] = useState(0);
   const [adminChargeCount, setAdminChargeCount] = useState(0);
-  const [staffPostName, setStaffPostName] = useState("Not Assigned");
+  const [staffPostName, setStaffPostName] = useState(NOT_ASSIGNED_STAFF_POST);
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem("token");
@@ -54,7 +58,8 @@ function TeacherProfile() {
           const subjectsResponse = await API.get(`/api/teacher-subject-assignments/teacher/${id}`, {
             headers: getAuthHeaders(),
           });
-          setSubjectCount(subjectsResponse.data?.data?.length || 0);
+          const subjectAssignments = subjectsResponse.data?.data || [];
+          setSubjectCount(subjectAssignments.filter((assignment) => assignment.is_active).length);
         } catch (subjectErr) {
           console.error("Failed to fetch subject count", subjectErr);
           setSubjectCount(0);
@@ -71,6 +76,18 @@ function TeacherProfile() {
           setAdminChargeCount(0);
         }
 
+        try {
+          const staffPostResponse = await API.get(
+            `/api/teacher-staff-post-assignments/teacher/${id}/current`,
+            { headers: getAuthHeaders() }
+          );
+          const currentAssignment = staffPostResponse.data?.data;
+          setStaffPostName(currentAssignment?.post_name || NOT_ASSIGNED_STAFF_POST);
+        } catch (staffPostErr) {
+          console.error("Failed to fetch current staff post assignment", staffPostErr);
+          setStaffPostName(NOT_ASSIGNED_STAFF_POST);
+        }
+
       } catch (err) {
         setError(
           err?.response?.data?.message || "Failed to load teacher profile."
@@ -85,11 +102,16 @@ function TeacherProfile() {
 
   const tabs = [
     { id: "overview", label: "Overview" },
+    { id: "personal", label: "Personal Details" },
     { id: "subjects", label: "Subjects" },
-    { id: "administrative-charges", label: "Administrative Charges" },
-    { id: "staff-post", label: "Staff Post" },
-    { id: "timetable", label: "Timetable" }
+    { id: "responsibilities", label: "Responsibilities" },
+    { id: "service-history", label: "Service History" },
+    { id: "timetable", label: "Timetable" },
   ];
+
+  const handleTeacherUpdate = (updatedTeacher) => {
+    setTeacher(updatedTeacher);
+  };
 
   if (isLoading) {
     return (
@@ -161,6 +183,18 @@ function TeacherProfile() {
             <h1 className="mt-1 text-2xl font-bold text-white sm:text-3xl">
               Teacher Command Center
             </h1>
+            <p className="mt-2 text-sm text-slate-400">
+              Designation:{" "}
+              <span
+                className={
+                  staffPostName === NOT_ASSIGNED_STAFF_POST
+                    ? "text-slate-400"
+                    : "font-semibold text-cyan-400"
+                }
+              >
+                {staffPostName}
+              </span>
+            </p>
           </div>
           <Link
             to="/teachers"
@@ -190,9 +224,18 @@ function TeacherProfile() {
               <p className="mb-2 text-center text-sm text-slate-400">
                 {teacher.subject || teacher.designation || "No designation"}
               </p>
-              <p className="mb-6 text-center text-sm font-semibold text-cyan-400">
+              <p
+                className={`mb-2 text-center text-sm font-semibold ${
+                  staffPostName === NOT_ASSIGNED_STAFF_POST
+                    ? "text-slate-400"
+                    : "text-cyan-400"
+                }`}
+              >
                 {staffPostName}
               </p>
+              <div className="mb-6 flex justify-center">
+                <TeacherStatusBadge compact status={teacher.status || "active"} />
+              </div>
 
               <div className="flex flex-col gap-4 border-t border-slate-800 pt-6">
                 
@@ -309,6 +352,12 @@ function TeacherProfile() {
                         <p className="mt-1 text-sm font-medium text-slate-200">{teacher.qualification || "—"}</p>
                       </div>
                       <div>
+                        <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Employment Status</p>
+                        <div className="mt-1">
+                          <TeacherStatusBadge compact status={teacher.status || "active"} />
+                        </div>
+                      </div>
+                      <div>
                         <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">Staff ID</p>
                         <p className="mt-1 text-sm font-medium text-slate-200">{`TCH-${teacher.id.toString().padStart(3, '0')}`}</p>
                       </div>
@@ -318,20 +367,27 @@ function TeacherProfile() {
                 </div>
               )}
 
+              {activeTab === "personal" && (
+                <TeacherPersonalDetailsTab
+                  teacher={teacher}
+                  onTeacherUpdate={handleTeacherUpdate}
+                />
+              )}
+
               {activeTab === "subjects" && (
                 <TeacherSubjectAssignmentsTab teacherId={teacher.id} />
               )}
 
-              {activeTab === "administrative-charges" && (
-                <TeacherAdministrativeChargesManager 
-                  teacherId={teacher.id} 
-                  hideHeader={true} 
-                  onAssignmentsChange={(count) => setAdminChargeCount(count)}
+              {activeTab === "responsibilities" && (
+                <TeacherResponsibilitiesTab
+                  teacherId={teacher.id}
+                  onDesignationChange={setStaffPostName}
+                  onAdminChargeCountChange={setAdminChargeCount}
                 />
               )}
 
-              {activeTab === "staff-post" && (
-                <TeacherStaffPostAssignmentsTab teacherId={teacher.id} onAssignmentsChange={setStaffPostName} />
+              {activeTab === "service-history" && (
+                <TeacherServiceHistoryTab teacherId={teacher.id} />
               )}
 
               {activeTab === "timetable" && (

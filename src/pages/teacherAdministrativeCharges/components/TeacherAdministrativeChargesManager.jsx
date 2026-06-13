@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useState } from "react";
 import API from "../../../api/axios";
+import { isActiveStaffTeacher } from "../../teachers/constants/teacherStatus";
 
 const getAuthHeaders = () => {
   const token = localStorage.getItem("token");
   return token ? { Authorization: `Bearer ${token}` } : {};
 };
 
-function TeacherAdministrativeChargesManager({ teacherId = null, hideHeader = false, onAssignmentsChange }) {
+function TeacherAdministrativeChargesManager({
+  teacherId = null,
+  hideHeader = false,
+  embedded = false,
+  onAssignmentsChange,
+}) {
   const [assignments, setAssignments] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [availableCharges, setAvailableCharges] = useState([]);
@@ -65,7 +71,7 @@ function TeacherAdministrativeChargesManager({ teacherId = null, hideHeader = fa
         headers: getAuthHeaders(),
         params: { page: 1, limit: 1000, search: "" },
       });
-      setTeachers(response?.data?.data?.teachers || []);
+      setTeachers((response?.data?.data?.teachers || []).filter(isActiveStaffTeacher));
     } catch (err) {
       console.error("Unable to load teachers.");
     }
@@ -213,8 +219,12 @@ function TeacherAdministrativeChargesManager({ teacherId = null, hideHeader = fa
       )}
 
       {hideHeader && (
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-xl font-bold text-white">Administrative Charges</h2>
+        <div
+          className={`flex items-center mb-4 ${embedded ? "justify-end" : "justify-between"}`}
+        >
+          {!embedded && (
+            <h2 className="text-xl font-bold text-white">Administrative Charges</h2>
+          )}
           <button
             type="button"
             onClick={openAddModal}

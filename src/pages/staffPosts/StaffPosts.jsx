@@ -1,14 +1,138 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { Icon } from "@iconify/react";
 import API from "../../api/axios";
 import { toast } from "react-toastify";
-import Modal from "../../components/Modal";
 import DashboardLayout from "../../layouts/DashboardLayout";
+import {
+  PageHeader,
+  MetricGrid,
+  MetricCard,
+  FilterToolbar,
+  FilterSearch,
+  FilterSelect,
+  Button,
+  Alert,
+  DataTable,
+  DataTableColGroup,
+  DataTableHead,
+  DataTableBody,
+  DataTableRow,
+  DataTableHeaderCell,
+  DataTableCell,
+  DataTableEmpty,
+  DataTableSkeleton,
+  DataTableFooter,
+  TablePagination,
+  ErpModal,
+  FormField,
+  Input,
+  Select,
+  FormGrid,
+  FormActions,
+  Badge,
+  VacancyCell,
+  erp,
+} from "../../design-system";
+
+const STAFF_POSTS_PAGE_LIMIT = 1000;
+const CLIENT_PAGE_SIZE = 10;
+
+const STAFF_POSTS_COLUMN_WIDTHS = [
+  "25%",
+  "10%",
+  "15%",
+  "15%",
+  "10%",
+  "10%",
+  "10%",
+  "5%",
+];
+
+const STAFF_CATEGORY_OPTIONS = [
+  { value: "", label: "All categories" },
+  { value: "Teaching", label: "Teaching" },
+  { value: "Administrative", label: "Administrative" },
+  { value: "Office", label: "Office" },
+  { value: "Support", label: "Support" },
+  { value: "Contractual", label: "Contractual" },
+];
+
+const getAuthHeaders = () => {
+  const token = localStorage.getItem("token");
+  return token ? { Authorization: `Bearer ${token}` } : {};
+};
+
+const enrichStaffPostsWithVacancy = (posts, assignments) => {
+  const filledCountByPostId = {};
+
+  assignments.forEach((assignment) => {
+    if (!assignment.staff_post_id) return;
+    filledCountByPostId[assignment.staff_post_id] =
+      (filledCountByPostId[assignment.staff_post_id] || 0) + 1;
+  });
+
+  return posts.map((post) => {
+    const filled = filledCountByPostId[post.id] || 0;
+    const sanctioned = Number(post.sanctioned_count) || 0;
+    const vacant = Math.max(0, sanctioned - filled);
+
+    return {
+      ...post,
+      filled,
+      vacant,
+    };
+  });
+};
+
+const fetchAllStaffPosts = async (search, filterCategory) => {
+  const firstResponse = await API.get("/api/staff-posts", {
+    headers: getAuthHeaders(),
+    params: {
+      search,
+      staff_category: filterCategory,
+      page: 1,
+      limit: STAFF_POSTS_PAGE_LIMIT,
+    },
+  });
+
+  const firstPayload = firstResponse?.data || {};
+  const limit = Number(firstPayload.limit) || STAFF_POSTS_PAGE_LIMIT;
+  const total = Number(firstPayload.total) || 0;
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+
+  let allPosts = Array.isArray(firstPayload.data) ? firstPayload.data : [];
+
+  if (totalPages > 1) {
+    const otherPages = await Promise.all(
+      Array.from({ length: totalPages - 1 }, (_, index) =>
+        API.get("/api/staff-posts", {
+          headers: getAuthHeaders(),
+          params: {
+            search,
+            staff_category: filterCategory,
+            page: index + 2,
+            limit: STAFF_POSTS_PAGE_LIMIT,
+          },
+        })
+      )
+    );
+
+    allPosts = [
+      ...allPosts,
+      ...otherPages.flatMap((response) =>
+        Array.isArray(response?.data?.data) ? response.data.data : []
+      ),
+    ];
+  }
+
+  return allPosts;
+};
 
 const StaffPosts = () => {
   const [staffPosts, setStaffPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [assignmentsWarning, setAssignmentsWarning] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [currentPost, setCurrentPost] = useState(null);
   const [formData, setFormData] = useState({
@@ -20,28 +144,68 @@ const StaffPosts = () => {
   });
   const [search, setSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
+  const [page, setPage] = useState(1);
 
   useEffect(() => {
     fetchStaffPosts();
   }, [search, filterCategory]);
 
+  useEffect(() => {
+    setPage(1);
+  }, [search, filterCategory]);
+
   const fetchStaffPosts = async () => {
     setLoading(true);
+    setError(null);
+    setAssignmentsWarning("");
+
     try {
-      const response = await API.get("/api/staff-posts", {
-        params: {
-          search,
-          staff_category: filterCategory,
-        },
-      });
-      setStaffPosts(response.data.data);
+      const [allPosts, assignmentsResult] = await Promise.all([
+        fetchAllStaffPosts(search, filterCategory),
+        API.get("/api/teacher-staff-post-assignments", {
+          headers: getAuthHeaders(),
+          params: { is_active: "true" },
+        }).catch((assignmentsErr) => {
+          console.error("Failed to fetch staff post assignments", assignmentsErr);
+          setAssignmentsWarning(
+            "Filled and vacant counts could not be loaded. Post data is still shown."
+          );
+          return null;
+        }),
+      ]);
+
+      const activeAssignments = assignmentsResult?.data?.data || [];
+      setStaffPosts(enrichStaffPostsWithVacancy(allPosts, activeAssignments));
     } catch (err) {
-      setError(err.message);
+      setStaffPosts([]);
+      setError(err?.response?.data?.message || err.message);
       toast.error("Failed to fetch staff posts");
     } finally {
       setLoading(false);
     }
   };
+
+  const metrics = useMemo(() => {
+    const totalPosts = staffPosts.length;
+    const totalSanctioned = staffPosts.reduce(
+      (sum, post) => sum + (Number(post.sanctioned_count) || 0),
+      0
+    );
+    const totalFilled = staffPosts.reduce((sum, post) => sum + (post.filled || 0), 0);
+    const totalVacant = staffPosts.reduce((sum, post) => sum + (post.vacant || 0), 0);
+
+    return { totalPosts, totalSanctioned, totalFilled, totalVacant };
+  }, [staffPosts]);
+
+  const totalPages = Math.max(1, Math.ceil(staffPosts.length / CLIENT_PAGE_SIZE));
+
+  useEffect(() => {
+    if (page > totalPages) {
+      setPage(totalPages);
+    }
+  }, [page, totalPages]);
+
+  const visiblePosts = staffPosts.slice((page - 1) * CLIENT_PAGE_SIZE, page * CLIENT_PAGE_SIZE);
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
@@ -55,10 +219,14 @@ const StaffPosts = () => {
     e.preventDefault();
     try {
       if (currentPost) {
-        await API.put(`/api/staff-posts/${currentPost.id}`, formData);
+        await API.put(`/api/staff-posts/${currentPost.id}`, formData, {
+          headers: getAuthHeaders(),
+        });
         toast.success("Staff post updated successfully");
       } else {
-        await API.post("/api/staff-posts", formData);
+        await API.post("/api/staff-posts", formData, {
+          headers: getAuthHeaders(),
+        });
         toast.success("Staff post created successfully");
       }
       fetchStaffPosts();
@@ -79,7 +247,9 @@ const StaffPosts = () => {
   const handleDelete = async (id) => {
     if (window.confirm("Are you sure you want to delete this staff post?")) {
       try {
-        await API.delete(`/api/staff-posts/${id}`);
+        await API.delete(`/api/staff-posts/${id}`, {
+          headers: getAuthHeaders(),
+        });
         toast.success("Staff post deleted successfully");
         fetchStaffPosts();
       } catch (err) {
@@ -112,192 +282,280 @@ const StaffPosts = () => {
     setIsModalOpen(true);
   };
 
-  if (loading) return <div className="text-center text-white">Loading...</div>;
-  if (error) return <div className="text-center text-red-500">Error: {error}</div>;
+  const resetFilters = () => {
+    setSearch("");
+    setFilterCategory("");
+    setPage(1);
+  };
 
- return (
-  <DashboardLayout>
-      <div className="container mx-auto p-6">
-      <div className="bg-slate-900 rounded-lg shadow-xl p-6">
-      <h2 className="text-3xl font-bold text-cyan-400 mb-6">Staff Posts Management</h2>
+  const categoryBadgeVariant = (category) => {
+    const map = {
+      Teaching: "cyan",
+      Administrative: "violet",
+      Office: "default",
+      Support: "amber",
+      Contractual: "rose",
+    };
+    return map[category] || "default";
+  };
 
-      <div className="flex flex-wrap items-center justify-between mb-6 gap-4">
-        <input
-          type="text"
-          placeholder="Search by post name or code..."
-          className="p-3 border border-slate-700 rounded-md bg-slate-800 text-white w-full md:w-1/3"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+  return (
+    <DashboardLayout>
+      <div className={erp.page}>
+        <PageHeader
+          eyebrow="Staff Management"
+          title="Staff Posts"
+          description="Manage sanctioned designations, track filled and vacant positions, and maintain government staffing records."
+          actions={
+            <Button onClick={openCreateModal}>
+              <Icon icon="mdi:briefcase-plus-outline" className="h-4 w-4" />
+              Add Staff Post
+            </Button>
+          }
         />
 
-        <select
-          className="p-3 border border-slate-700 rounded-md bg-slate-800 text-white w-full md:w-1/3"
-          value={filterCategory}
-          onChange={(e) => setFilterCategory(e.target.value)}
-        >
-          <option value="">All Categories</option>
-          <option value="Teaching">Teaching</option>
-          <option value="Administrative">Administrative</option>
-          <option value="Office">Office</option>
-          <option value="Support">Support</option>
-          <option value="Contractual">Contractual</option>
-        </select>
+        <MetricGrid columns={4}>
+          <MetricCard
+            label="Total Posts"
+            value={loading ? "…" : metrics.totalPosts}
+            hint="Designation categories"
+            accent="cyan"
+          />
+          <MetricCard
+            label="Sanctioned Strength"
+            value={loading ? "…" : metrics.totalSanctioned}
+            hint="Approved headcount"
+            accent="violet"
+          />
+          <MetricCard
+            label="Filled Positions"
+            value={loading || assignmentsWarning ? "…" : metrics.totalFilled}
+            hint="Active assignments"
+            accent="emerald"
+          />
+          <MetricCard
+            label="Vacant Positions"
+            value={loading || assignmentsWarning ? "…" : metrics.totalVacant}
+            hint="Available slots"
+            accent="amber"
+          />
+        </MetricGrid>
 
-        <button
-          onClick={openCreateModal}
-          className="flex items-center gap-2 px-5 py-3 bg-cyan-600 text-white rounded-md hover:bg-cyan-700 transition-colors"
-        >
-          <Icon icon="mdi:plus-circle" className="h-5 w-5 inline-block mr-1" />
-          Add Staff Post
-        </button>
-      </div>
+        <FilterToolbar title="Search & filter" onReset={resetFilters}>
+          <FilterSearch
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            placeholder="Search by post name or code…"
+          />
+          <FilterSelect
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
+            options={STAFF_CATEGORY_OPTIONS}
+            aria-label="Filter by staff category"
+          />
+        </FilterToolbar>
 
-      <div className="overflow-x-auto bg-slate-800 rounded-lg shadow-md">
-        <table className="min-w-full leading-normal">
-          <thead>
-            <tr className="bg-slate-700 text-slate-200 uppercase text-sm">
-              <th className="px-5 py-3 border-b-2 border-slate-600 text-left">Post Name</th>
-              <th className="px-5 py-3 border-b-2 border-slate-600 text-left">Post Code</th>
-              <th className="px-5 py-3 border-b-2 border-slate-600 text-left">Staff Category</th>
-              <th className="px-5 py-3 border-b-2 border-slate-600 text-left">Appointment Nature</th>
-              <th className="px-5 py-3 border-b-2 border-slate-600 text-left">Sanctioned Count</th>
-              <th className="px-5 py-3 border-b-2 border-slate-600 text-left">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {staffPosts.length > 0 ? (
-              staffPosts.map((post) => (
-                <tr key={post.id} className="hover:bg-slate-700 transition-colors duration-200">
-                  <td className="px-5 py-5 border-b border-slate-700 text-sm text-white">{post.post_name}</td>
-                  <td className="px-5 py-5 border-b border-slate-700 text-sm text-white">{post.post_code}</td>
-                  <td className="px-5 py-5 border-b border-slate-700 text-sm text-white">{post.staff_category}</td>
-                  <td className="px-5 py-5 border-b border-slate-700 text-sm text-white">{post.appointment_nature}</td>
-                  <td className="px-5 py-5 border-b border-slate-700 text-sm text-white">{post.sanctioned_count}</td>
-                  <td className="px-5 py-5 border-b border-slate-700 text-sm">
-                    <div className="flex items-center gap-3">
-                      <button
-                        onClick={() => openEditModal(post)}
-                        className="text-blue-400 hover:text-blue-300 transition-colors"
-                        title="Edit"
-                      >
-                        <Icon icon="mdi:pencil" className="h-5 w-5" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(post.id)}
-                        className="text-red-400 hover:text-red-300 transition-colors"
-                        title="Delete"
-                      >
-                        <Icon icon="mdi:delete" className="h-5 w-5" />
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))
+        {error ? <Alert variant="error">{error}</Alert> : null}
+        {assignmentsWarning ? <Alert variant="warning">{assignmentsWarning}</Alert> : null}
+
+        <DataTable
+          fixedLayout
+          footer={
+            !loading && staffPosts.length > 0 ? (
+              <DataTableFooter>
+                <TablePagination
+                  page={page}
+                  totalPages={totalPages}
+                  totalItems={staffPosts.length}
+                  pageSize={CLIENT_PAGE_SIZE}
+                  onPageChange={setPage}
+                  isLoading={loading}
+                />
+              </DataTableFooter>
+            ) : null
+          }
+        >
+          <DataTableColGroup widths={STAFF_POSTS_COLUMN_WIDTHS} />
+          <DataTableHead>
+            <DataTableRow>
+              <DataTableHeaderCell width="25%">Designation</DataTableHeaderCell>
+              <DataTableHeaderCell align="center" width="10%">
+                Post Code
+              </DataTableHeaderCell>
+              <DataTableHeaderCell align="center" width="15%">
+                Category
+              </DataTableHeaderCell>
+              <DataTableHeaderCell align="center" width="15%">
+                Appointment
+              </DataTableHeaderCell>
+              <DataTableHeaderCell align="center" width="10%">
+                Sanctioned
+              </DataTableHeaderCell>
+              <DataTableHeaderCell align="center" width="10%">
+                Filled
+              </DataTableHeaderCell>
+              <DataTableHeaderCell align="center" width="10%">
+                Vacant
+              </DataTableHeaderCell>
+              <DataTableHeaderCell align="center" width="5%">
+                Actions
+              </DataTableHeaderCell>
+            </DataTableRow>
+          </DataTableHead>
+          <DataTableBody>
+            {loading ? (
+              <DataTableSkeleton rows={6} cols={8} />
+            ) : visiblePosts.length === 0 ? (
+              <DataTableEmpty colSpan={8} message="No staff posts found." />
             ) : (
-              <tr>
-                <td colSpan="6" className="text-center px-5 py-5 text-sm text-white">
-                  No staff posts found.
-                </td>
-              </tr>
+              visiblePosts.map((post) => (
+                <DataTableRow key={post.id}>
+                  <DataTableCell width="25%" className="whitespace-normal font-medium text-white">
+                    {post.post_name}
+                  </DataTableCell>
+                  <DataTableCell align="center" width="10%" centerContent>
+                    <code className="rounded-md bg-slate-800/80 px-2 py-0.5 text-xs text-cyan-300">
+                      {post.post_code}
+                    </code>
+                  </DataTableCell>
+                  <DataTableCell align="center" width="15%" centerContent>
+                    <Badge variant={categoryBadgeVariant(post.staff_category)}>
+                      {post.staff_category}
+                    </Badge>
+                  </DataTableCell>
+                  <DataTableCell align="center" width="15%" muted centerContent>
+                    {post.appointment_nature}
+                  </DataTableCell>
+                  <DataTableCell
+                    align="center"
+                    width="10%"
+                    centerContent
+                    className="font-semibold tabular-nums"
+                  >
+                    {post.sanctioned_count}
+                  </DataTableCell>
+                  <DataTableCell align="center" width="10%" centerContent className="tabular-nums">
+                    {assignmentsWarning ? "—" : post.filled}
+                  </DataTableCell>
+                  <DataTableCell align="center" width="10%" centerContent>
+                    <VacancyCell
+                      vacant={post.vacant}
+                      filled={post.filled}
+                      sanctioned={post.sanctioned_count}
+                      unavailable={Boolean(assignmentsWarning)}
+                    />
+                  </DataTableCell>
+                  <DataTableCell align="center" width="5%" centerContent>
+                    <Button
+                      variant="ghost"
+                      onClick={() => openEditModal(post)}
+                      aria-label={`Edit ${post.post_name}`}
+                      className="!p-2"
+                    >
+                      <Icon icon="mdi:pencil-outline" className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="danger"
+                      onClick={() => handleDelete(post.id)}
+                      aria-label={`Delete ${post.post_name}`}
+                      className="!p-2"
+                    >
+                      <Icon icon="mdi:delete-outline" className="h-4 w-4" />
+                    </Button>
+                  </DataTableCell>
+                </DataTableRow>
+              ))
             )}
-          </tbody>
-        </table>
+          </DataTableBody>
+        </DataTable>
       </div>
 
-      <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={currentPost ? "Edit Staff Post" : "Add Staff Post"}>
-        <form onSubmit={handleCreateEdit} className="space-y-4">
-          <div>
-            <label htmlFor="post_name" className="block text-sm font-medium text-slate-300">Post Name</label>
-            <input
-              type="text"
-              id="post_name"
-              name="post_name"
-              value={formData.post_name}
-              onChange={handleInputChange}
-              className="mt-1 block w-full p-3 border border-slate-700 rounded-md bg-slate-800 text-white"
-              required
-            />
-          </div>
-          <div>
-            <label htmlFor="post_code" className="block text-sm font-medium text-slate-300">Post Code</label>
-            <input
-              type="text"
-              id="post_code"
-              name="post_code"
-              value={formData.post_code}
-              onChange={handleInputChange}
-              className="mt-1 block w-full p-3 border border-slate-700 rounded-md bg-slate-800 text-white"
-              required
-            />
-          </div>
-          <div>
-            <label htmlFor="staff_category" className="block text-sm font-medium text-slate-300">Staff Category</label>
-            <select
-              id="staff_category"
-              name="staff_category"
-              value={formData.staff_category}
-              onChange={handleInputChange}
-              className="mt-1 block w-full p-3 border border-slate-700 rounded-md bg-slate-800 text-white"
-              required
-            >
-              <option value="Teaching">Teaching</option>
-              <option value="Administrative">Administrative</option>
-              <option value="Office">Office</option>
-              <option value="Support">Support</option>
-              <option value="Contractual">Contractual</option>
-            </select>
-          </div>
-          <div>
-            <label htmlFor="appointment_nature" className="block text-sm font-medium text-slate-300">Appointment Nature</label>
-            <select
-              id="appointment_nature"
-              name="appointment_nature"
-              value={formData.appointment_nature}
-              onChange={handleInputChange}
-              className="mt-1 block w-full p-3 border border-slate-700 rounded-md bg-slate-800 text-white"
-              required
-            >
-              <option value="Permanent">Permanent</option>
-              <option value="Temporary">Temporary</option>
-              <option value="Contractual">Contractual</option>
-              <option value="Part-time">Part-time</option>
-              <option value="Outsourced">Outsourced</option>
-              <option value="Deputation">Deputation</option>
-            </select>
-          </div>
-          <div>
-            <label htmlFor="sanctioned_count" className="block text-sm font-medium text-slate-300">Sanctioned Count</label>
-            <input
-              type="number"
-              id="sanctioned_count"
-              name="sanctioned_count"
-              value={formData.sanctioned_count}
-              onChange={handleInputChange}
-              className="mt-1 block w-full p-3 border border-slate-700 rounded-md bg-slate-800 text-white"
-              required
-              min="0"
-            />
-          </div>
-          <div className="flex justify-end gap-3 mt-6">
-            <button
-              type="button"
-              onClick={() => setIsModalOpen(false)}
-              className="px-4 py-2 bg-slate-600 text-white rounded-md hover:bg-slate-700 transition-colors"
-            >
+      <ErpModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        eyebrow={currentPost ? "Edit Post" : "New Post"}
+        title={currentPost ? "Edit Staff Post" : "Add Staff Post"}
+        size="md"
+      >
+        <form onSubmit={handleCreateEdit}>
+          <FormGrid columns={1}>
+            <FormField label="Post Name" htmlFor="post_name">
+              <Input
+                type="text"
+                id="post_name"
+                name="post_name"
+                value={formData.post_name}
+                onChange={handleInputChange}
+                required
+              />
+            </FormField>
+
+            <FormField label="Post Code" htmlFor="post_code">
+              <Input
+                type="text"
+                id="post_code"
+                name="post_code"
+                value={formData.post_code}
+                onChange={handleInputChange}
+                required
+              />
+            </FormField>
+
+            <FormField label="Staff Category" htmlFor="staff_category">
+              <Select
+                id="staff_category"
+                name="staff_category"
+                value={formData.staff_category}
+                onChange={handleInputChange}
+                required
+              >
+                <option value="Teaching">Teaching</option>
+                <option value="Administrative">Administrative</option>
+                <option value="Office">Office</option>
+                <option value="Support">Support</option>
+                <option value="Contractual">Contractual</option>
+              </Select>
+            </FormField>
+
+            <FormField label="Appointment Nature" htmlFor="appointment_nature">
+              <Select
+                id="appointment_nature"
+                name="appointment_nature"
+                value={formData.appointment_nature}
+                onChange={handleInputChange}
+                required
+              >
+                <option value="Permanent">Permanent</option>
+                <option value="Temporary">Temporary</option>
+                <option value="Contractual">Contractual</option>
+                <option value="Part-time">Part-time</option>
+                <option value="Outsourced">Outsourced</option>
+                <option value="Deputation">Deputation</option>
+              </Select>
+            </FormField>
+
+            <FormField label="Sanctioned Count" htmlFor="sanctioned_count">
+              <Input
+                type="number"
+                id="sanctioned_count"
+                name="sanctioned_count"
+                value={formData.sanctioned_count}
+                onChange={handleInputChange}
+                required
+                min="0"
+              />
+            </FormField>
+          </FormGrid>
+
+          <FormActions>
+            <Button type="button" variant="secondary" onClick={() => setIsModalOpen(false)}>
               Cancel
-            </button>
-            <button
-              type="submit"
-              className="px-4 py-2 bg-cyan-600 text-white rounded-md hover:bg-cyan-700 transition-colors"
-            >
-              {currentPost ? "Update" : "Create"}
-            </button>
-          </div>
+            </Button>
+            <Button type="submit">{currentPost ? "Update" : "Create"}</Button>
+          </FormActions>
         </form>
-            </Modal>
-      </div>
-    </div>
-  </DashboardLayout>
+      </ErpModal>
+    </DashboardLayout>
   );
 };
 
