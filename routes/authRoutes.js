@@ -10,9 +10,23 @@ const {
   validateRegister,
   validateRequest
 } = require("../middleware/validation");
+
+const {
+  authenticate,
+  isSuperAdmin
+} = require("../middleware/auth");
+
 const loginSchema = require("../validators/loginValidator");
 
-router.post("/register", validateRegister, registerUser);
+// Only Super Admin can create users
+router.post(
+  "/register",
+  authenticate,
+  isSuperAdmin,
+  validateRegister,
+  registerUser
+);
+
 router.post(
   "/login",
   validateRequest(loginSchema, { useTextResponse: true }),

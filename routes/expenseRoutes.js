@@ -2,12 +2,21 @@ const express = require("express");
 const router = express.Router();
 const pool = require("../db");
 const {
+  authenticate,
+  isAdminLike
+} = require("../middleware/auth");
+const {
   validateRequest
 } = require("../middleware/validation");
 const {
   expenseEntrySchema,
   expensePaymentVerificationSchema
 } = require("../validators/expenseRouteValidator");
+
+router.use(
+  authenticate,
+  isAdminLike
+);
 
 router.post(
   "/",

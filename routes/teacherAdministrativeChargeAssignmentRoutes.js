@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../middleware/asyncHandler");
-const { authenticate } = require("../middleware/auth");
+const { authenticate, isAdminLike } = require("../middleware/auth");
 const { validateRequest } = require("../middleware/validation");
 const {
   createAssignmentSchema,
@@ -17,8 +17,7 @@ const {
   relieveAssignment
 } = require("../controllers/teacherAdministrativeChargeAssignmentController");
 
-// Protect all routes
-router.use(authenticate);
+router.use(authenticate, isAdminLike);
 
 router.get("/", asyncHandler(getAssignments));
 router.get("/teacher/:teacherId", asyncHandler(getAssignmentsForTeacher));

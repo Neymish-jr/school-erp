@@ -3,9 +3,14 @@ const router = express.Router();
 const upload = require("../middleware/upload");
 const { validateRequest } = require("../middleware/validation");
 const {
+  authenticate,
+  isAdminLike
+} = require("../middleware/auth");
+const {
   activitySchema,
   activityStatusSchema
 } = require("../validators/activityValidator");
+
 const {
   getActivities,
   createActivity,
@@ -13,6 +18,10 @@ const {
   uploadActivityFile
 } = require("../controllers/activityController");
 
+router.use(
+  authenticate,
+  isAdminLike
+);
 
 router.get("/", getActivities);
 

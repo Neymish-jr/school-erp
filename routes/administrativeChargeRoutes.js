@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../middleware/asyncHandler");
-const { authenticate, isAdmin } = require("../middleware/auth");
+const { authenticate, isAdminLike } = require("../middleware/auth");
 const { validateRequest } = require("../middleware/validation");
 const {
   administrativeChargeSchema,
@@ -21,21 +21,21 @@ router.get("/:id", authenticate, asyncHandler(getAdministrativeChargeById));
 router.post(
   "/",
   authenticate,
-  isAdmin,
+  isAdminLike,
   validateRequest(administrativeChargeSchema),
   asyncHandler(createAdministrativeCharge)
 );
 router.put(
   "/:id",
   authenticate,
-  isAdmin,
+  isAdminLike,
   validateRequest(administrativeChargeSchema),
   asyncHandler(updateAdministrativeCharge)
 );
 router.put(
   "/:id/status",
   authenticate,
-  isAdmin,
+  isAdminLike,
   validateRequest(administrativeChargeStatusSchema),
   asyncHandler(updateAdministrativeChargeStatus)
 );

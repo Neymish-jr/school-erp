@@ -5,16 +5,15 @@ const activitySchema = Joi.object({
   description: Joi.string().required(),
   allocated_budget: Joi.number().greater(0).required(),
   assigned_teacher_id: Joi.number().required(),
-  school_id: Joi.number().required()
 });
 
 const activityStatusSchema = Joi.object({
   status: Joi.string()
     .valid("Pending", "Approved", "Rejected", "Completed")
-    .required()
+    .required(),
 });
 
 module.exports = {
   activitySchema,
-  activityStatusSchema
+  activityStatusSchema,
 };

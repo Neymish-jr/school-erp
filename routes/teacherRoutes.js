@@ -1,8 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../middleware/asyncHandler");
-const { authenticate } = require("../middleware/auth");
-const roleMiddleware = require("../middleware/roleMiddleware");
+const { authenticate, isAdminLike } = require("../middleware/auth");
 const { validateRequest } = require("../middleware/validation");
 const teacherSchema = require("../validators/teacherValidator");
 const teacherUpdateSchema = teacherSchema.teacherUpdateSchema;
@@ -40,7 +39,7 @@ const {
 router.post(
   "/",
   authenticate,
-  roleMiddleware("admin"),
+  isAdminLike,
   validateRequest(teacherSchema),
   asyncHandler(createTeacher)
 );
@@ -108,7 +107,7 @@ router.get("/:id", authenticate, asyncHandler(getTeacherById));
 router.put(
   "/:id",
   authenticate,
-  roleMiddleware("admin"),
+  isAdminLike,
   validateRequest(teacherUpdateSchema),
   asyncHandler(updateTeacher)
 );
@@ -133,7 +132,7 @@ router.put(
 router.delete(
   "/:id",
   authenticate,
-  roleMiddleware("admin"),
+  isAdminLike,
   asyncHandler(deleteTeacher)
 );
 

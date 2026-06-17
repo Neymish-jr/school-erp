@@ -1,12 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const {
-  authenticate
+  authenticate,
+  isAdminLike
 } = require("../middleware/auth");
 const asyncHandler = require("../middleware/asyncHandler");
-const roleMiddleware = require("../middleware/roleMiddleware");
-const { validateRequest } = require("../middleware/validation");
-const studentSchema = require("../validators/studentValidator");
 
 const {
   getStudents,
@@ -62,7 +60,7 @@ const {
 router.post(
   "/",
   authenticate,
-  roleMiddleware("admin"),
+  isAdminLike,
   asyncHandler(createStudent)
 );
 
@@ -111,6 +109,18 @@ router.post(
     asyncHandler(getStudentById)
   );
 
-router.delete("/:id", authenticate, deleteStudent);
+router.put(
+  "/:id",
+  authenticate,
+  isAdminLike,
+  asyncHandler(updateStudent)
+);
+
+router.delete(
+  "/:id",
+  authenticate,
+  isAdminLike,
+  asyncHandler(deleteStudent)
+);
 
 module.exports = router;

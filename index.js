@@ -1,5 +1,7 @@
 require("dotenv").config();
 
+const fs = require("fs");
+const path = require("path");
 const helmet = require("helmet");
 const rateLimit = require("express-rate-limit");
 const express = require("express");
@@ -29,6 +31,12 @@ const administrativeChargeRoutes = require("./routes/administrativeChargeRoutes"
 const teacherAdministrativeChargeAssignmentRoutes = require("./routes/teacherAdministrativeChargeAssignmentRoutes");
 const teacherStaffPostAssignmentRoutes = require("./routes/teacherStaffPostAssignmentRoutes");
 const staffServiceHistoryRoutes = require("./routes/staffServiceHistoryRoutes");
+const financialYearRoutes = require("./routes/financialYearRoutes");
+const budgetHeadRoutes = require("./routes/budgetHeadRoutes");
+const budgetSubHeadRoutes = require("./routes/budgetSubHeadRoutes");
+const budgetAllocationRoutes = require("./routes/budgetAllocationRoutes");
+const expenseRequestRoutes = require("./routes/expenseRequestRoutes");
+const financeCashbookRoutes = require("./routes/financeCashbookRoutes");
 const cors = require("cors");
 const attendanceRoutes = require("./routes/attendanceRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
@@ -39,7 +47,7 @@ const studentImportRoutes = require(
 );
 const {
   authenticate,
-  isAdmin,
+  isAdminLike,
   isTeacher
 } = require("./middleware/auth");
 
@@ -326,6 +334,284 @@ pool.query(`
 });
 
 pool.query(`
+  CREATE TABLE IF NOT EXISTS financial_years (
+    id SERIAL PRIMARY KEY,
+    school_id INTEGER NOT NULL REFERENCES schools(id) ON DELETE RESTRICT,
+    year_label VARCHAR(9) NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL,
+    status VARCHAR(10) NOT NULL DEFAULT 'closed',
+    remarks TEXT NULL,
+    created_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT uq_financial_years_school_label UNIQUE (school_id, year_label),
+    CONSTRAINT chk_financial_years_dates CHECK (end_date > start_date),
+    CONSTRAINT chk_financial_years_status CHECK (status IN ('active', 'closed'))
+  )
+`).catch((err) => {
+  console.error("Failed to initialize financial_years table", err);
+});
+
+pool.query(`
+  CREATE UNIQUE INDEX IF NOT EXISTS uq_financial_years_one_active
+  ON financial_years (school_id)
+  WHERE status = 'active'
+`).catch((err) => {
+  console.error("Failed to create uq_financial_years_one_active index", err);
+});
+
+pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_financial_years_school_status
+  ON financial_years (school_id, status)
+`).catch((err) => {
+  console.error("Failed to create idx_financial_years_school_status index", err);
+});
+
+pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_financial_years_school_dates
+  ON financial_years (school_id, start_date, end_date)
+`).catch((err) => {
+  console.error("Failed to create idx_financial_years_school_dates index", err);
+});
+
+const runBudgetMasterMigration = async () => {
+  const check = await pool.query(`
+    SELECT EXISTS (
+      SELECT 1 FROM information_schema.columns
+      WHERE table_name = 'budget_heads' AND column_name = 'school_id'
+    ) AS needs_migration
+  `);
+
+  if (!check.rows[0]?.needs_migration) {
+    return false;
+  }
+
+  const migrationPath = path.join(
+    __dirname,
+    "migrations",
+    "012_budget_heads_sub_heads_refactor.sql"
+  );
+  const sql = fs.readFileSync(migrationPath, "utf8");
+  console.log("Applying budget head/sub head migration 012...");
+  await pool.query(sql);
+  console.log("Budget head/sub head migration 012 applied.");
+  return true;
+};
+
+runBudgetMasterMigration()
+  .then(() =>
+    pool.query(`
+      CREATE TABLE IF NOT EXISTS budget_heads (
+        id SERIAL PRIMARY KEY,
+        head_code VARCHAR(30) NOT NULL,
+        head_name VARCHAR(150) NOT NULL,
+        remarks TEXT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_budget_heads_code UNIQUE (head_code),
+        CONSTRAINT uq_budget_heads_name UNIQUE (head_name)
+      )
+    `)
+  )
+  .then(() =>
+    pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_budget_heads_active
+      ON budget_heads (is_active)
+    `)
+  )
+  .then(() =>
+    pool.query(`
+      CREATE TABLE IF NOT EXISTS budget_sub_heads (
+        id SERIAL PRIMARY KEY,
+        budget_head_id INTEGER NOT NULL REFERENCES budget_heads(id) ON DELETE RESTRICT,
+        sub_head_code VARCHAR(30) NOT NULL,
+        sub_head_name VARCHAR(150) NOT NULL,
+        remarks TEXT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_budget_sub_heads_code UNIQUE (sub_head_code),
+        CONSTRAINT uq_budget_sub_heads_head_name UNIQUE (budget_head_id, sub_head_name)
+      )
+    `)
+  )
+  .then(() =>
+    pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_budget_sub_heads_head
+      ON budget_sub_heads (budget_head_id, is_active)
+    `)
+  )
+  .then(() =>
+    pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_budget_sub_heads_active
+      ON budget_sub_heads (is_active)
+    `)
+  )
+  .then(() =>
+    pool.query(`
+      CREATE TABLE IF NOT EXISTS budget_allocations (
+        id SERIAL PRIMARY KEY,
+        school_id INTEGER NOT NULL REFERENCES schools(id) ON DELETE RESTRICT,
+        financial_year_id INTEGER NOT NULL REFERENCES financial_years(id) ON DELETE RESTRICT,
+        budget_sub_head_id INTEGER NOT NULL REFERENCES budget_sub_heads(id) ON DELETE RESTRICT,
+        allocated_amount NUMERIC(15,2) NOT NULL,
+        responsible_teacher_id INTEGER NULL REFERENCES teachers(id) ON DELETE RESTRICT,
+        remarks TEXT NULL,
+        is_active BOOLEAN NOT NULL DEFAULT TRUE,
+        created_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+        CONSTRAINT uq_budget_allocations_fy_sub_head UNIQUE (school_id, financial_year_id, budget_sub_head_id),
+        CONSTRAINT chk_budget_allocations_amount CHECK (allocated_amount > 0)
+      )
+    `)
+  )
+  .then(() =>
+    pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_budget_allocations_fy
+      ON budget_allocations (financial_year_id, is_active)
+    `)
+  )
+  .then(() =>
+    pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_budget_allocations_teacher
+      ON budget_allocations (responsible_teacher_id)
+    `)
+  )
+  .then(() =>
+    pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_budget_allocations_school
+      ON budget_allocations (school_id, financial_year_id)
+    `)
+  )
+  .then(() =>
+    pool.query(`
+      CREATE INDEX IF NOT EXISTS idx_budget_allocations_sub_head
+      ON budget_allocations (budget_sub_head_id)
+    `)
+  )
+  .catch((err) => {
+    console.error("Failed to initialize finance master/allocation tables", err);
+  });
+
+pool.query(`
+  CREATE TABLE IF NOT EXISTS expense_requests (
+    id SERIAL PRIMARY KEY,
+    school_id INTEGER NOT NULL REFERENCES schools(id) ON DELETE RESTRICT,
+    budget_allocation_id INTEGER NOT NULL REFERENCES budget_allocations(id) ON DELETE RESTRICT,
+    requested_amount NUMERIC(15,2) NOT NULL,
+    purpose VARCHAR(255) NOT NULL,
+    vendor_name VARCHAR(150) NULL,
+    remarks TEXT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'draft',
+    created_by_user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    submitted_by_user_id INTEGER NULL REFERENCES users(id) ON DELETE RESTRICT,
+    submitted_at TIMESTAMPTZ NULL,
+    reviewed_by_user_id INTEGER NULL REFERENCES users(id) ON DELETE RESTRICT,
+    reviewed_at TIMESTAMPTZ NULL,
+    rejection_remarks TEXT NULL,
+    paid_at TIMESTAMPTZ NULL,
+    payment_voucher_no VARCHAR(50) NULL,
+    payment_transaction_id VARCHAR(100) NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT chk_expense_requests_status CHECK (
+      status IN ('draft', 'pending', 'approved', 'rejected', 'paid')
+    ),
+    CONSTRAINT chk_expense_requests_amount CHECK (requested_amount > 0)
+  )
+`).catch((err) => {
+  console.error("Failed to initialize expense_requests table", err);
+});
+
+pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_expense_requests_allocation
+  ON expense_requests (budget_allocation_id, status)
+`).catch((err) => {
+  console.error("Failed to create idx_expense_requests_allocation index", err);
+});
+
+pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_expense_requests_school_status
+  ON expense_requests (school_id, status)
+`).catch((err) => {
+  console.error("Failed to create idx_expense_requests_school_status index", err);
+});
+
+pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_expense_requests_submitter
+  ON expense_requests (submitted_by_user_id)
+`).catch((err) => {
+  console.error("Failed to create idx_expense_requests_submitter index", err);
+});
+
+pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_expense_requests_creator
+  ON expense_requests (created_by_user_id)
+`).catch((err) => {
+  console.error("Failed to create idx_expense_requests_creator index", err);
+});
+
+pool.query(`
+  CREATE TABLE IF NOT EXISTS cashbook_entries (
+    id SERIAL PRIMARY KEY,
+    school_id INTEGER NOT NULL REFERENCES schools(id) ON DELETE RESTRICT,
+    financial_year_id INTEGER NOT NULL REFERENCES financial_years(id) ON DELETE RESTRICT,
+    entry_type VARCHAR(20) NOT NULL,
+    direction VARCHAR(10) NOT NULL,
+    entry_date DATE NOT NULL,
+    amount NUMERIC(15,2) NOT NULL,
+    description VARCHAR(255) NOT NULL,
+    vendor_name VARCHAR(150) NULL,
+    voucher_no VARCHAR(50) NULL,
+    transaction_id VARCHAR(100) NULL,
+    budget_allocation_id INTEGER NOT NULL REFERENCES budget_allocations(id) ON DELETE RESTRICT,
+    budget_head_id INTEGER NOT NULL REFERENCES budget_heads(id) ON DELETE RESTRICT,
+    budget_sub_head_id INTEGER NOT NULL REFERENCES budget_sub_heads(id) ON DELETE RESTRICT,
+    expense_request_id INTEGER NULL REFERENCES expense_requests(id) ON DELETE RESTRICT,
+    posted_by_user_id INTEGER NULL REFERENCES users(id) ON DELETE RESTRICT,
+    metadata JSONB NOT NULL DEFAULT '{}'::jsonb,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    CONSTRAINT chk_cashbook_entries_type CHECK (
+      entry_type IN ('payment', 'receipt', 'deposit', 'journal')
+    ),
+    CONSTRAINT chk_cashbook_entries_direction CHECK (
+      direction IN ('inflow', 'outflow')
+    ),
+    CONSTRAINT chk_cashbook_entries_amount CHECK (amount > 0)
+  )
+`).catch((err) => {
+  console.error("Failed to initialize cashbook_entries table", err);
+});
+
+pool.query(`
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_cashbook_entries_expense_request_unique
+  ON cashbook_entries (expense_request_id)
+  WHERE expense_request_id IS NOT NULL
+`).catch((err) => {
+  console.error("Failed to create idx_cashbook_entries_expense_request_unique index", err);
+});
+
+pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_cashbook_entries_school_date
+  ON cashbook_entries (school_id, entry_date DESC)
+`).catch((err) => {
+  console.error("Failed to create idx_cashbook_entries_school_date index", err);
+});
+
+pool.query(`
+  CREATE INDEX IF NOT EXISTS idx_cashbook_entries_school_fy
+  ON cashbook_entries (school_id, financial_year_id, entry_date DESC)
+`).catch((err) => {
+  console.error("Failed to create idx_cashbook_entries_school_fy index", err);
+});
+
+pool.query(`
   CREATE TABLE IF NOT EXISTS teacher_staff_post_assignments (
     id SERIAL PRIMARY KEY,
     teacher_id INTEGER NOT NULL REFERENCES teachers(id) ON DELETE CASCADE,
@@ -369,6 +655,12 @@ app.use("/api/administrative-charges", administrativeChargeRoutes);
 app.use("/api/teacher-administrative-charge-assignments", teacherAdministrativeChargeAssignmentRoutes);
 app.use("/api/teacher-staff-post-assignments", teacherStaffPostAssignmentRoutes);
 app.use("/api/staff-service-history", staffServiceHistoryRoutes);
+app.use("/api/financial-years", financialYearRoutes);
+app.use("/api/budget-heads", budgetHeadRoutes);
+app.use("/api/budget-sub-heads", budgetSubHeadRoutes);
+app.use("/api/budget-allocations", budgetAllocationRoutes);
+app.use("/api/expense-requests", expenseRequestRoutes);
+app.use("/api/finance/cashbook", financeCashbookRoutes);
 app.use("/", authRoutes);
 
 
@@ -377,28 +669,28 @@ app.use("/", authRoutes);
 app.get(
   "/api/dashboard/staff-posts/total",
   authenticate,
-  isAdmin,
+  isAdminLike,
   staffPostController.getTotalStaffPosts
 );
 
 app.get(
   "/api/dashboard/staff-posts/sanctioned-strength",
   authenticate,
-  isAdmin,
+  isAdminLike,
   staffPostController.getTotalSanctionedStrength
 );
 
 app.get(
   "/api/dashboard/staff-posts/filled-positions",
   authenticate,
-  isAdmin,
+  isAdminLike,
   staffPostController.getFilledPositions
 );
 
 app.get(
   "/api/dashboard/staff-posts/vacant-positions",
   authenticate,
-  isAdmin,
+  isAdminLike,
   staffPostController.getVacantPositions
 );
 
@@ -427,7 +719,7 @@ app.get("/test-db", async (req, res) => {
   }
 });
 
-app.get("/admin-data", authenticate, isAdmin, (req, res) => {
+app.get("/admin-data", authenticate, isAdminLike, (req, res) => {
   res.send("Only admin can see this");
 });
 

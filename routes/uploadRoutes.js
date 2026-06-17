@@ -17,9 +17,15 @@ const storage = multer.diskStorage({
 });
 
 const upload = multer({ storage });
+const {
+  authenticate,
+  isAdminLike
+} = require("../middleware/auth");
 
 router.post(
   "/students",
+  authenticate,
+  isAdminLike,
   upload.single("file"),
 
   async (req, res) => {

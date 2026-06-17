@@ -14,6 +14,14 @@ const getStudents = async (req, res) => {
       const search = req.query.search || "";
 
       const gender = req.query.gender || "";
+      const { school_id: schoolId, role } = req.user;
+      const params = [`%${search}%`, gender || "%"];
+      let schoolClause = "";
+
+      if (role !== "super_admin" && schoolId != null) {
+        params.push(schoolId);
+        schoolClause = ` AND school_id = $${params.length}`;
+      }
       const allowedSortFields = [
         "name",
         "gender",
@@ -31,6 +39,10 @@ const getStudents = async (req, res) => {
       } else {
         sort = "name";
       }
+      params.push(limit, offset);
+      const limitParam = params.length - 1;
+      const offsetParam = params.length;
+
       const result = await pool.query(
 
         `
@@ -39,6 +51,7 @@ const getStudents = async (req, res) => {
         WHERE is_active = true
         AND name ILIKE $1
         AND gender ILIKE $2
+        ${schoolClause}
         ORDER BY
         CASE
           WHEN '${sort}' = 'student_class' THEN
@@ -59,17 +72,14 @@ const getStudents = async (req, res) => {
             END
         END ASC,
         ${sort} ASC
-        LIMIT $3 OFFSET $4
+        LIMIT $${limitParam} OFFSET $${offsetParam}
         `,
 
-        [
-          `%${search}%`,
-          gender || "%",
-          limit,
-          offset
-        ]
+        params
 
       );
+
+      const countParams = params.slice(0, params.length - 2);
 
       const totalResult = await pool.query(
 
@@ -79,12 +89,10 @@ const getStudents = async (req, res) => {
         WHERE is_active = true
         AND name ILIKE $1
         AND gender ILIKE $2
+        ${schoolClause}
         `,
 
-        [
-          `%${search}%`,
-          gender || "%"
-        ]
+        countParams
 
       );
 
@@ -149,14 +157,22 @@ const getStudents = async (req, res) => {
 // GET STUDENT BY ID
 const getStudentById = async (req, res) => {
     const { id } = req.params;
+    const { school_id: schoolId, role } = req.user;
+    const params = [id];
+    let schoolClause = "";
+
+    if (role !== "super_admin" && schoolId != null) {
+      params.push(schoolId);
+      schoolClause = ` AND school_id = $${params.length}`;
+    }
 
     const result = await pool.query(
       `
       SELECT * FROM students
       WHERE id = $1
-      AND school_id = $2
+      ${schoolClause}
       `,
-      [id, req.user.school_id]
+      params
     );
 
     if (result.rows.length === 0) {
@@ -169,6 +185,16 @@ const getStudentById = async (req, res) => {
 // UPDATE STUDENT
 const updateStudent = async (req, res) => {
     const { id } = req.params;
+
+    const { error } = studentSchema.validate(req.body);
+
+    if (error) {
+      return errorResponse(res, {
+        message: error.details[0].message,
+        error: error.details[0].message,
+        status: 400,
+      });
+    }
 
     const {
       name,

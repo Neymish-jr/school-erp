@@ -1,67 +1,52 @@
-const { body, param } = require("express-validator");
+const Joi = require("joi");
 
-exports.createStaffPostValidation = [
-  body("post_name")
-    .notEmpty()
-    .withMessage("Post name is required")
-    .isString()
-    .withMessage("Post name must be a string")
-    .trim(),
-  body("post_code")
-    .notEmpty()
-    .withMessage("Post code is required")
-    .isString()
-    .withMessage("Post code must be a string")
-    .trim()
-    .toUpperCase(),
-  body("staff_category")
-    .notEmpty()
-    .withMessage("Staff category is required")
-    .isIn(["Teaching", "Administrative", "Office", "Support", "Contractual"])
-    .withMessage("Staff category must be one of the allowed values"),
-  body("appointment_nature")
-    .notEmpty()
-    .withMessage("Appointment nature is required")
-    .isIn(["Permanent", "Temporary", "Contractual", "Part-time", "Outsourced", "Deputation"])
-    .withMessage("Appointment nature must be one of the allowed values"),
-  body("sanctioned_count")
-    .notEmpty()
-    .withMessage("Sanctioned count is required")
-    .isInt({ min: 0 })
-    .withMessage("Sanctioned count must be a non-negative integer"),
+const STAFF_CATEGORIES = [
+  "Teaching",
+  "Administrative",
+  "Office",
+  "Support",
+  "Contractual",
 ];
 
-exports.updateStaffPostValidation = [
-  param("id").isInt().withMessage("ID must be an integer"),
-  body("post_name")
-    .optional()
-    .isString()
-    .withMessage("Post name must be a string")
-    .trim(),
-  body("post_code")
-    .optional()
-    .isString()
-    .withMessage("Post code must be a string")
-    .trim()
-    .toUpperCase(),
-  body("staff_category")
-    .optional()
-    .isIn(["Teaching", "Administrative", "Office", "Support", "Contractual"])
-    .withMessage("Staff category must be one of the allowed values"),
-  body("appointment_nature")
-    .optional()
-    .isIn(["Permanent", "Temporary", "Contractual", "Part-time", "Outsourced", "Deputation"])
-    .withMessage("Appointment nature must be one of the allowed values"),
-  body("sanctioned_count")
-    .optional()
-    .isInt({ min: 0 })
-    .withMessage("Sanctioned count must be a non-negative integer"),
+const APPOINTMENT_NATURES = [
+  "Permanent",
+  "Temporary",
+  "Contractual",
+  "Part-time",
+  "Outsourced",
+  "Deputation",
 ];
 
-exports.getStaffPostByIdValidation = [
-  param("id").isInt().withMessage("ID must be an integer"),
-];
+const staffPostSchema = Joi.object({
+  post_name: Joi.string().trim().min(1).required().messages({
+    "string.empty": "Post name is required",
+    "any.required": "Post name is required",
+  }),
+  post_code: Joi.string().trim().uppercase().min(1).required().messages({
+    "string.empty": "Post code is required",
+    "any.required": "Post code is required",
+  }),
+  staff_category: Joi.string()
+    .valid(...STAFF_CATEGORIES)
+    .required()
+    .messages({
+      "any.only": "Staff category must be one of the allowed values",
+      "any.required": "Staff category is required",
+    }),
+  appointment_nature: Joi.string()
+    .valid(...APPOINTMENT_NATURES)
+    .required()
+    .messages({
+      "any.only": "Appointment nature must be one of the allowed values",
+      "any.required": "Appointment nature is required",
+    }),
+  sanctioned_count: Joi.number().integer().min(0).required().messages({
+    "number.base": "Sanctioned count must be a non-negative integer",
+    "number.min": "Sanctioned count must be a non-negative integer",
+    "any.required": "Sanctioned count is required",
+  }),
+}).required();
 
-exports.deleteStaffPostValidation = [
-  param("id").isInt().withMessage("ID must be an integer"),
-];
+module.exports = {
+  staffPostSchema,
+};

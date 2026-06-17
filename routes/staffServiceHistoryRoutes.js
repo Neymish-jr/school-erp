@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../middleware/asyncHandler");
-const { authenticate, isAdmin } = require("../middleware/auth");
+const { authenticate, isAdminLike } = require("../middleware/auth");
 const {
   getAssignments,
   getEventById,
@@ -12,7 +12,7 @@ const {
   getTeacherTenure,
 } = require("../controllers/staffServiceHistoryController");
 
-router.use(authenticate, isAdmin);
+router.use(authenticate, isAdminLike);
 
 router.get("/", asyncHandler(getAssignments));
 router.get("/teacher/:teacherId/service-book", asyncHandler(getTeacherServiceBook));

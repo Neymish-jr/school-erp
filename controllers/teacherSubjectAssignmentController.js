@@ -15,6 +15,15 @@ const normalizeAssignmentPayload = (payload = {}) => ({
 const shouldIncludeHistory = (query = {}) =>
   query.include_history === "true" || query.include_history === true;
 
+const buildSchoolClause = (role, schoolId, params, tableAlias = "t") => {
+  if (role !== "super_admin" && schoolId != null) {
+    params.push(schoolId);
+    return `${tableAlias}.school_id = $${params.length}`;
+  }
+
+  return null;
+};
+
 const getBaseAssignmentQuery = () => `
   SELECT
     tsa.id,
@@ -38,10 +47,20 @@ const getBaseAssignmentQuery = () => `
 `;
 
 const buildAssignmentsQuery = (options = {}) => {
-  const { teacherId = null, activeOnly = true } = options;
+  const {
+    teacherId = null,
+    activeOnly = true,
+    role = null,
+    schoolId = null,
+  } = options;
   let query = getBaseAssignmentQuery();
   const params = [];
   const conditions = [];
+
+  const schoolCondition = buildSchoolClause(role, schoolId, params);
+  if (schoolCondition) {
+    conditions.push(schoolCondition);
+  }
 
   if (teacherId !== null) {
     params.push(teacherId);
@@ -63,8 +82,13 @@ const buildAssignmentsQuery = (options = {}) => {
 
 const getAssignments = async (req, res) => {
   try {
+    const { school_id: schoolId, role } = req.user;
     const activeOnly = !shouldIncludeHistory(req.query);
-    const { query, params } = buildAssignmentsQuery({ activeOnly });
+    const { query, params } = buildAssignmentsQuery({
+      activeOnly,
+      role,
+      schoolId,
+    });
     const result = await pool.query(query, params);
 
     return successResponse(res, {

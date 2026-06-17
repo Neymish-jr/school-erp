@@ -9,23 +9,34 @@ const {
 
 const router = express.Router();
 
+const {
+  authenticate,
+  isAdminLike
+} = require("../middleware/auth");
+
 const upload = multer({
   dest: "uploads/",
 });
 
 router.post(
   "/",
+  authenticate,
+  isAdminLike,
   upload.single("file"),
   importStudents
 );
 
 router.get(
   "/template",
+  authenticate,
+  isAdminLike,
   downloadTemplate
 );
 
 router.get(
   "/export",
+  authenticate,
+  isAdminLike,
   exportStudents
 );
 

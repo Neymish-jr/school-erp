@@ -2,7 +2,7 @@ const express = require("express");
 const router = express.Router();
 
 const asyncHandler = require("../middleware/asyncHandler");
-const { authenticate, isAdmin } = require("../middleware/auth");
+const { authenticate, isAdminLike } = require("../middleware/auth");
 const { validateRequest } = require("../middleware/validation");
 
 const { staffPostSchema } = require("../validators/staffPostValidator");
@@ -30,7 +30,7 @@ router.get(
 router.post(
   "/",
   authenticate,
-  isAdmin,
+  isAdminLike,
   validateRequest(staffPostSchema),
   asyncHandler(createStaffPost)
 );
@@ -38,7 +38,7 @@ router.post(
 router.put(
   "/:id",
   authenticate,
-  isAdmin,
+  isAdminLike,
   validateRequest(staffPostSchema),
   asyncHandler(updateStaffPost)
 );
@@ -46,7 +46,7 @@ router.put(
 router.delete(
   "/:id",
   authenticate,
-  isAdmin,
+  isAdminLike,
   asyncHandler(deleteStaffPost)
 );
 

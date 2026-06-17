@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../middleware/asyncHandler");
-const { authenticate, isAdmin } = require("../middleware/auth");
+const { authenticate, isAdminLike } = require("../middleware/auth");
 const { validateRequest } = require("../middleware/validation");
 const {
   createAssignmentSchema,
@@ -17,7 +17,7 @@ const {
   relieveAssignment,
 } = require("../controllers/teacherStaffPostAssignmentController");
 
-router.use(authenticate, isAdmin);
+router.use(authenticate, isAdminLike);
 
 router.get("/", asyncHandler(getAssignments));
 router.get("/teacher/:teacherId", asyncHandler(getAssignmentsForTeacher));

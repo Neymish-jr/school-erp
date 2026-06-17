@@ -1,8 +1,36 @@
 const XLSX = require("xlsx");
 const pool = require("../db");
 
+const buildSchoolClause = (role, schoolId, params, tableAlias = "students") => {
+  if (role !== "super_admin" && schoolId != null) {
+    params.push(schoolId);
+    return ` AND ${tableAlias}.school_id = $${params.length}`;
+  }
+
+  return "";
+};
+
+const resolveSchoolIdForWrite = (req, res) => {
+  const { school_id: schoolId } = req.user;
+
+  if (schoolId == null) {
+    res.status(400).json({
+      success: false,
+      message: "School context is required for this operation",
+    });
+    return null;
+  }
+
+  return schoolId;
+};
+
 const importStudents = async (req, res) => {
   try {
+    const schoolId = resolveSchoolIdForWrite(req, res);
+    if (schoolId == null) {
+      return;
+    }
+
     if (!req.file) {
       return res.status(400).json({
         success: false,
@@ -11,12 +39,8 @@ const importStudents = async (req, res) => {
     }
 
     const workbook = XLSX.readFile(req.file.path);
-
     const sheetName = workbook.SheetNames[0];
-
-    const students = XLSX.utils.sheet_to_json(
-      workbook.Sheets[sheetName]
-    );
+    const students = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
 
     let imported = 0;
 
@@ -50,7 +74,7 @@ const importStudents = async (req, res) => {
           student["Social Category"] || "General",
           student["Class"],
           student["Section"],
-          1,
+          schoolId,
           true,
         ]
       );
@@ -72,6 +96,7 @@ const importStudents = async (req, res) => {
     });
   }
 };
+
 const downloadTemplate = async (req, res) => {
   const data = [
     {
@@ -84,15 +109,9 @@ const downloadTemplate = async (req, res) => {
   ];
 
   const workbook = XLSX.utils.book_new();
+  const worksheet = XLSX.utils.json_to_sheet(data);
 
-  const worksheet =
-    XLSX.utils.json_to_sheet(data);
-
-  XLSX.utils.book_append_sheet(
-    workbook,
-    worksheet,
-    "Students"
-  );
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Students");
 
   const buffer = XLSX.write(workbook, {
     type: "buffer",
@@ -106,42 +125,36 @@ const downloadTemplate = async (req, res) => {
 
   res.send(buffer);
 };
-const exportStudents = async (
-  req,
-  res
-) => {
-  const result =
-    await pool.query(`
-      SELECT
+
+const exportStudents = async (req, res) => {
+  const { school_id: schoolId, role } = req.user;
+  const params = [];
+  const schoolClause = buildSchoolClause(role, schoolId, params);
+
+  const result = await pool.query(
+    `
+    SELECT
       name,
       gender,
       category,
       student_class,
       section
-      FROM students
-    `);
-
-  const workbook =
-    XLSX.utils.book_new();
-
-  const worksheet =
-    XLSX.utils.json_to_sheet(
-      result.rows
-    );
-
-  XLSX.utils.book_append_sheet(
-    workbook,
-    worksheet,
-    "Students"
+    FROM students
+    WHERE is_active = true
+    ${schoolClause}
+    `,
+    params
   );
 
-  const buffer = XLSX.write(
-    workbook,
-    {
-      type: "buffer",
-      bookType: "xlsx",
-    }
-  );
+  const workbook = XLSX.utils.book_new();
+  const worksheet = XLSX.utils.json_to_sheet(result.rows);
+
+  XLSX.utils.book_append_sheet(workbook, worksheet, "Students");
+
+  const buffer = XLSX.write(workbook, {
+    type: "buffer",
+    bookType: "xlsx",
+  });
 
   res.setHeader(
     "Content-Disposition",

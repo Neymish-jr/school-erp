@@ -7,16 +7,16 @@ const {
   createStudentResult,
   getStudentResults,
 } = require("../controllers/studentResultsController");
-const { authenticate, isTeacherOrAdmin } = require("../middleware/auth");
+const { authenticate, isTeacherOrAdminLike } = require("../middleware/auth");
 
 router.post(
   "/",
   authenticate,
-  isTeacherOrAdmin,
+  isTeacherOrAdminLike,
   validateRequest(studentResultsSchema),
   asyncHandler(createStudentResult)
 );
 
-router.get("/", authenticate, isTeacherOrAdmin, asyncHandler(getStudentResults));
+router.get("/", authenticate, isTeacherOrAdminLike, asyncHandler(getStudentResults));
 
 module.exports = router;

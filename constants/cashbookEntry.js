@@ -1,0 +1,21 @@
+const CASHBOOK_ENTRY_TYPE = {
+  PAYMENT: "payment",
+  RECEIPT: "receipt",
+  DEPOSIT: "deposit",
+  JOURNAL: "journal",
+};
+
+const CASHBOOK_DIRECTION = {
+  INFLOW: "inflow",
+  OUTFLOW: "outflow",
+};
+
+const CASHBOOK_ENTRY_TYPE_VALUES = Object.values(CASHBOOK_ENTRY_TYPE);
+const CASHBOOK_DIRECTION_VALUES = Object.values(CASHBOOK_DIRECTION);
+
+module.exports = {
+  CASHBOOK_ENTRY_TYPE,
+  CASHBOOK_DIRECTION,
+  CASHBOOK_ENTRY_TYPE_VALUES,
+  CASHBOOK_DIRECTION_VALUES,
+};
