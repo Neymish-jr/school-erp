@@ -8,14 +8,14 @@ export default {
     extend: {
       colors: {
         erp: {
-          base: "#0f172a",
-          surface: "#0c1222",
-          card: "#111827",
-          border: "#1e293b",
-          accent: "#06b6d4",
+          base: "#111827",
+          surface: "#0f1419",
+          card: "#1f2937",
+          border: "#374151",
+          accent: "#F97316",
         },
       },
     },
   },
   plugins: [],
-}
+};

@@ -213,7 +213,7 @@ function AdministrativeCharges() {
       <div className="space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">
+            <p className="text-sm uppercase tracking-[0.3em] text-orange-300">
               Administration Setup
             </p>
             <h1 className="mt-3 text-4xl font-bold text-white">
@@ -227,7 +227,7 @@ function AdministrativeCharges() {
           <button
             type="button"
             onClick={openAddModal}
-            className="inline-flex items-center justify-center rounded-2xl bg-cyan-500 px-4 py-3 font-semibold text-slate-950 transition hover:bg-cyan-400"
+            className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-4 py-3 font-semibold text-white transition hover:bg-orange-400"
           >
             + Add Charge
           </button>
@@ -263,7 +263,7 @@ function AdministrativeCharges() {
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 placeholder="Search by charge name or description"
-                className="mt-3 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                className="mt-3 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400"
               />
             </label>
 
@@ -271,7 +271,7 @@ function AdministrativeCharges() {
               type="button"
               onClick={applySearch}
               disabled={isRefreshing}
-              className="rounded-2xl border border-cyan-400 px-4 py-3 text-sm font-semibold text-cyan-100 transition hover:border-cyan-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-2xl border border-orange-400 px-4 py-3 text-sm font-semibold text-orange-100 transition hover:border-orange-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isRefreshing ? "Refreshing..." : "Apply"}
             </button>
@@ -407,7 +407,7 @@ function AdministrativeCharges() {
           <div className="w-full max-w-xl rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">
+                <p className="text-sm uppercase tracking-[0.3em] text-orange-300">
                   {editingId ? "Edit Charge" : "Add Charge"}
                 </p>
                 <h2 className="mt-2 text-2xl font-bold text-white">
@@ -432,7 +432,7 @@ function AdministrativeCharges() {
                   value={formData.charge_name}
                   onChange={handleInputChange}
                   placeholder="e.g. Board Exam In-Charge"
-                  className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                  className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400"
                 />
               </label>
 
@@ -444,7 +444,7 @@ function AdministrativeCharges() {
                   onChange={handleInputChange}
                   rows="4"
                   placeholder="Optional responsibility description"
-                  className="mt-2 w-full resize-none rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                  className="mt-2 w-full resize-none rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400"
                 />
               </label>
 
@@ -459,7 +459,7 @@ function AdministrativeCharges() {
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-2xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSaving ? "Saving..." : editingId ? "Update Charge" : "Add Charge"}
                 </button>
@@ -493,7 +493,7 @@ function AdministrativeCharges() {
                 type="button"
                 onClick={handleStatusChange}
                 disabled={isUpdatingStatus}
-                className="rounded-2xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-2xl bg-orange-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isUpdatingStatus
                   ? "Updating..."

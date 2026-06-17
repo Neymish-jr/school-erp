@@ -474,13 +474,13 @@ function Attendance() {
       label: "Students in view",
       value: filteredStudents.length,
       icon: HiOutlineUsers,
-      accent: "from-cyan-500 to-blue-500",
+      accent: "from-orange-500 to-orange-600",
     },
     {
       label: "Classes available",
       value: classes.length,
       icon: HiOutlineAcademicCap,
-      accent: "from-fuchsia-500 to-violet-500",
+      accent: "from-orange-500 to-amber-500",
     },
     {
       label: "Sections available",
@@ -492,7 +492,7 @@ function Attendance() {
       label: "Attendance date",
       value: selectedDate,
       icon: HiOutlineCalendarDays,
-      accent: "from-emerald-500 to-teal-500",
+      accent: "from-emerald-500 to-emerald-500",
     },
   ];
 
@@ -501,7 +501,7 @@ function Attendance() {
       <div className="space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">
+            <p className="text-sm uppercase tracking-[0.3em] text-orange-300">
               Attendance Management
             </p>
             <h1 className="mt-3 text-4xl font-bold text-white">
@@ -540,7 +540,7 @@ function Attendance() {
                   <div>
                     <p className="text-2xl font-bold text-white">{card.value}</p>
                   </div>
-                  <Icon className="h-8 w-8 text-cyan-200" />
+                  <Icon className="h-8 w-8 text-orange-200" />
                 </div>
               </div>
             );
@@ -557,7 +557,7 @@ function Attendance() {
                   setSelectedClass(event.target.value);
                   setSelectedSection("all");
                 }}
-                className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400"
               >
                 <option value="all">All classes</option>
                 {sortedClasses.map((classItem) => (
@@ -573,7 +573,7 @@ function Attendance() {
               <select
                 value={selectedSection}
                 onChange={(event) => setSelectedSection(event.target.value)}
-                className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400"
               >
                 <option value="all">All sections</option>
                 {availableSections.map((section) => (
@@ -603,7 +603,7 @@ function Attendance() {
                   setError("");
                   setSelectedDate(nextDate);
                 }}
-                className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400"
               />
             </label>
 
@@ -617,7 +617,7 @@ function Attendance() {
                   isLoadingStudents ||
                   isLoadingExistingAttendance
                 }
-                className="w-full rounded-2xl bg-cyan-500 px-4 py-3 font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+                className="w-full rounded-2xl bg-orange-500 px-4 py-3 font-semibold text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {isSubmitting
                   ? "Saving..."
@@ -642,7 +642,7 @@ function Attendance() {
         ) : null}
 
         {infoMessage ? (
-          <div className="rounded-2xl border border-cyan-500/40 bg-cyan-500/10 px-4 py-3 text-sm text-cyan-50">
+          <div className="rounded-2xl border border-orange-500/40 bg-orange-500/10 px-4 py-3 text-sm text-orange-50">
             {infoMessage}
           </div>
         ) : null}
@@ -694,7 +694,7 @@ function Attendance() {
                           onChange={(event) =>
                             handleAttendanceChange(student.id, event.target.value)
                           }
-                          className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none transition focus:border-cyan-400"
+                          className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none transition focus:border-orange-400"
                         >
                           {ATTENDANCE_STATUSES.map((status) => (
                             <option key={status} value={status}>

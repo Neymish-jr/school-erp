@@ -21,7 +21,7 @@ function StaffDirectoryRow({
         <div className="min-w-0 flex-1">
           <Link
             to={profileTo}
-            className="block truncate text-sm font-semibold text-white transition group-hover:text-cyan-400"
+            className="block truncate text-sm font-semibold text-white transition group-hover:text-orange-400"
           >
             {name}
           </Link>

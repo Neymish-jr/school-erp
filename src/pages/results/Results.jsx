@@ -250,7 +250,7 @@ function Results() {
       <div className="space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">
+            <p className="text-sm uppercase tracking-[0.3em] text-orange-300">
               Student Results
             </p>
             <h1 className="mt-3 text-4xl font-bold text-white">
@@ -358,10 +358,10 @@ function Results() {
                 />
               </label>
 
-              <div className="md:col-span-2 rounded-2xl border border-cyan-500/30 bg-slate-950 px-4 py-4">
+              <div className="md:col-span-2 rounded-2xl border border-orange-500/30 bg-slate-950 px-4 py-4">
                 <p className="text-sm text-slate-300">Auto-calculated preview</p>
                 <div className="mt-3 flex flex-wrap gap-3 text-sm">
-                  <span className="rounded-full bg-cyan-500/15 px-3 py-1 text-cyan-200">
+                  <span className="rounded-full bg-orange-500/15 px-3 py-1 text-orange-200">
                     Percentage: {preview.percentage.toFixed(2)}%
                   </span>
                   <span
@@ -380,7 +380,7 @@ function Results() {
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="inline-flex items-center justify-center rounded-2xl bg-cyan-500 px-4 py-3 font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-70"
+                  className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-4 py-3 font-semibold text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-70"
                 >
                   {isSaving ? "Saving..." : "Save Result"}
                 </button>

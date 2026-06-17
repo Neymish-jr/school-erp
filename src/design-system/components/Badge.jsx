@@ -1,11 +1,12 @@
 function Badge({ variant = "default", children }) {
   const styles = {
     default: "bg-slate-700/60 text-slate-200",
-    cyan: "bg-cyan-500/15 text-cyan-300",
+    orange: "bg-orange-500/15 text-orange-300",
+    cyan: "bg-orange-500/15 text-orange-300",
     emerald: "bg-emerald-500/15 text-emerald-300",
     amber: "bg-amber-500/15 text-amber-300",
     rose: "bg-rose-500/15 text-rose-300",
-    violet: "bg-violet-500/15 text-violet-300",
+    violet: "bg-amber-600/15 text-amber-300",
   };
 
   return (

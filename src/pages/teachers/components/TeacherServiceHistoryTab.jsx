@@ -104,8 +104,8 @@ const getServiceEndDate = (timeline, teacherStatus) => {
 };
 
 const CATEGORY_STYLES = {
-  employment: "border-cyan-500/40 bg-cyan-500/10 text-cyan-300",
-  designation: "border-violet-500/40 bg-violet-500/10 text-violet-300",
+  employment: "border-orange-500/40 bg-orange-500/10 text-orange-300",
+  designation: "border-amber-500/40 bg-amber-500/10 text-amber-300",
   administrative: "border-amber-500/40 bg-amber-500/10 text-amber-300",
   teaching: "border-emerald-500/40 bg-emerald-500/10 text-emerald-300",
 };
@@ -322,7 +322,7 @@ function TeacherServiceHistoryTab({ teacherId }) {
                 onClick={() => setActiveFilter(option.id)}
                 className={`rounded-xl px-3 py-1.5 text-sm font-medium transition ${
                   activeFilter === option.id
-                    ? "bg-cyan-500/15 text-cyan-300"
+                    ? "bg-orange-500/15 text-orange-300"
                     : "bg-slate-800 text-slate-400 hover:text-slate-200"
                 }`}
               >

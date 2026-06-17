@@ -7,7 +7,7 @@ function StatsCard({
   changeType = "positive",
   icon: Icon,
   description,
-  accent = "from-cyan-500 to-blue-500",
+  accent = "from-orange-500 to-orange-600",
 }) {
   const isPositive = changeType === "positive";
 
@@ -16,7 +16,7 @@ function StatsCard({
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.35 }}
-      className="relative overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 p-5 shadow-[0_25px_80px_-32px_rgba(56,189,248,0.35)]"
+      className="relative overflow-hidden rounded-3xl border border-slate-800 bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 p-5 shadow-[0_25px_80px_-32px_rgba(249,115,22,0.25)]"
     >
       <div className={`absolute inset-x-0 top-0 h-1 bg-gradient-to-r ${accent}`} />
 

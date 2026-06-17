@@ -69,7 +69,7 @@ function FilterCheckbox({ checked, onChange, label }) {
         type="checkbox"
         checked={checked}
         onChange={onChange}
-        className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-cyan-500 focus:ring-cyan-500/30"
+        className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-orange-500 focus:ring-orange-500/30"
       />
       {label}
     </label>

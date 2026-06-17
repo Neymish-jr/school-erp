@@ -11,13 +11,14 @@ function MetricGrid({ children, columns = 3 }) {
   return <div className={gridClass}>{children}</div>;
 }
 
-function MetricCard({ label, value, hint, accent = "cyan" }) {
+function MetricCard({ label, value, hint, accent = "orange" }) {
   const accentBar = {
-    cyan: "bg-cyan-500",
+    orange: "bg-orange-500",
+    cyan: "bg-orange-500",
     emerald: "bg-emerald-500",
     amber: "bg-amber-500",
-    violet: "bg-violet-500",
-  }[accent] || "bg-cyan-500";
+    violet: "bg-amber-600",
+  }[accent] || "bg-orange-500";
 
   return (
     <article className={`${erp.card} relative overflow-hidden ${erp.cardPadding}`}>

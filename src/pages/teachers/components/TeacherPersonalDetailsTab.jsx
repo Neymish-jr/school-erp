@@ -198,7 +198,7 @@ function TeacherPersonalDetailsTab({ teacher, onTeacherUpdate }) {
   };
 
   const inputClass =
-    "mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400";
+    "mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400";
   const labelClass = "text-xs font-semibold uppercase tracking-wider text-slate-500";
 
   const fields = [
@@ -335,7 +335,7 @@ function TeacherPersonalDetailsTab({ teacher, onTeacherUpdate }) {
             <button
               type="submit"
               disabled={isSaving}
-              className="rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+              className="rounded-2xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isSaving ? "Saving..." : "Save Changes"}
             </button>

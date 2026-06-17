@@ -31,7 +31,7 @@ function StaffSummary({
         </span>
         <span>
           <span className="font-medium text-slate-300">Former:</span>{" "}
-          <span className="tabular-nums text-violet-400">{value(former)}</span>
+          <span className="tabular-nums text-amber-400">{value(former)}</span>
         </span>
       </p>
       {filteredCount !== undefined ? (

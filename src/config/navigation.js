@@ -39,8 +39,19 @@ const navigation = [
     label: "Finance",
     icon: "mdi:finance",
     children: [
-      { label: "Expenses", path: "/expenses" },
-      { label: "Cashbook", path: "/cashbook" },
+      { label: "Financial Years", path: "/finance/financial-years" },
+      {
+        label: "Budget Structure",
+        path: "/finance/budget-structure",
+        roles: ["super_admin"],
+      },
+      { label: "Budget Allocations", path: "/finance/budget-allocations" },
+      { label: "Expense Requests", path: "/finance/expense-requests" },
+      {
+        label: "Cashbook",
+        path: "/finance/cashbook",
+        roles: ["admin", "super_admin"],
+      },
     ],
   },
   {
@@ -59,5 +70,25 @@ const navigation = [
     ],
   },
 ];
+
+export const getVisibleNavigation = (role) =>
+  navigation
+    .map((group) => {
+      if (!group.children) {
+        return group;
+      }
+
+      const children = group.children.filter((item) => {
+        if (!item.roles?.length) return true;
+        return item.roles.includes(role);
+      });
+
+      if (children.length === 0) {
+        return null;
+      }
+
+      return { ...group, children };
+    })
+    .filter(Boolean);
 
 export default navigation;

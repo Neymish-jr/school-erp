@@ -233,7 +233,7 @@ function Subjects() {
       <div className="space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">Subject Management</p>
+            <p className="text-sm uppercase tracking-[0.3em] text-orange-300">Subject Management</p>
             <h1 className="mt-3 text-4xl font-bold text-white">Subjects</h1>
             <p className="mt-2 max-w-2xl text-slate-300">
               Add, edit, and manage subjects while keeping the same modern dark dashboard experience used throughout the ERP.
@@ -243,7 +243,7 @@ function Subjects() {
           <button
             type="button"
             onClick={openAddModal}
-            className="inline-flex items-center justify-center rounded-2xl bg-cyan-500 px-4 py-3 font-semibold text-slate-950 transition hover:bg-cyan-400"
+            className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-4 py-3 font-semibold text-white transition hover:bg-orange-400"
           >
             + Add Subject
           </button>
@@ -272,7 +272,7 @@ function Subjects() {
               placeholder="Search by subject name or code"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400"
             />
             <button
               type="button"
@@ -364,7 +364,7 @@ function Subjects() {
           <div className="w-full max-w-xl rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">
+                <p className="text-sm uppercase tracking-[0.3em] text-orange-300">
                   {editingId ? "Edit Subject" : "Add Subject"}
                 </p>
                 <h2 className="mt-2 text-2xl font-bold text-white">
@@ -388,7 +388,7 @@ function Subjects() {
                   name="subject_name"
                   value={formData.subject_name}
                   onChange={handleInputChange}
-                  className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                  className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400"
                   placeholder="Enter subject name"
                 />
               </label>
@@ -417,7 +417,7 @@ function Subjects() {
                           key={classSection.id}
                           className={`rounded-2xl border px-4 py-3 text-sm transition ${
                             isSelected
-                              ? "border-cyan-400 bg-cyan-500/10"
+                              ? "border-orange-400 bg-orange-500/10"
                               : "border-slate-700 bg-slate-950"
                           }`}
                         >
@@ -429,7 +429,7 @@ function Subjects() {
                               type="checkbox"
                               checked={isSelected}
                               onChange={() => handleClassToggle(Number(classSection.id))}
-                              className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-cyan-500"
+                              className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-orange-500"
                             />
                           </div>
                         </label>
@@ -450,7 +450,7 @@ function Subjects() {
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-2xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSaving ? "Saving..." : editingId ? "Update Subject" : "Add Subject"}
                 </button>

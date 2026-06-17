@@ -278,7 +278,7 @@ const fetchClassSections = async () => {
       <div className="space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">
+            <p className="text-sm uppercase tracking-[0.3em] text-orange-300">
               Student Management
             </p>
             <h1 className="mt-3 text-4xl font-bold text-white">
@@ -291,7 +291,7 @@ const fetchClassSections = async () => {
 
           <button
             onClick={openAddModal}
-            className="inline-flex items-center justify-center rounded-2xl bg-cyan-500 px-4 py-3 font-semibold text-slate-950 transition hover:bg-cyan-400"
+            className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-4 py-3 font-semibold text-white transition hover:bg-orange-400"
           >
             + Add Student
           </button>
@@ -341,7 +341,7 @@ const fetchClassSections = async () => {
               placeholder="Search by student name"
               value={search}
               onChange={handleSearchChange}
-              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+              className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400"
             />
             <button
               type="button"
@@ -478,7 +478,7 @@ const fetchClassSections = async () => {
           <div className="w-full max-w-2xl rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">
+                <p className="text-sm uppercase tracking-[0.3em] text-orange-300">
                   {editingId ? "Edit Student" : "Add Student"}
                 </p>
                 <h2 className="mt-2 text-2xl font-bold text-white">
@@ -503,7 +503,7 @@ const fetchClassSections = async () => {
                   required
                   value={formData.name}
                   onChange={handleInputChange}
-                  className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                  className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400"
                   placeholder="Enter student name"
                 />
               </label>
@@ -515,7 +515,7 @@ const fetchClassSections = async () => {
                   required
                   value={formData.gender}
                   onChange={handleInputChange}
-                  className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                  className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400"
                 >
                   <option value="">Select gender</option>
                   <option value="Male">Male</option>
@@ -531,7 +531,7 @@ const fetchClassSections = async () => {
                   required
                   value={formData.category}
                   onChange={handleInputChange}
-                  className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                  className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400"
                 >
                   <option value="">Select category</option>
                   <option value="General">General</option>
@@ -548,7 +548,7 @@ const fetchClassSections = async () => {
                   required
                   value={formData.student_class}
                   onChange={handleInputChange}
-                  className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                  className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400"
                 >
                   <option value="">Select class</option>
                   {classOptions.map((className) => (
@@ -566,7 +566,7 @@ const fetchClassSections = async () => {
                   required
                   value={formData.section}
                   onChange={handleInputChange}
-                  className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                  className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400"
                 >
                   <option value="">Select section</option>
                   {sectionOptions.map((sectionName) => (
@@ -588,7 +588,7 @@ const fetchClassSections = async () => {
                 <button
                   type="submit"
                   disabled={isSaving}
-                  className="rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-2xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSaving ? "Saving..." : editingId ? "Update Student" : "Add Student"}
                 </button>

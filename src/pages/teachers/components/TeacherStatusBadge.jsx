@@ -6,8 +6,8 @@ const STATUS_STYLES = {
   },
   deputation: {
     label: "Deputation",
-    className: "bg-cyan-500/15 text-cyan-200",
-    compactClassName: "border-cyan-500/25 bg-cyan-500/5 text-cyan-300",
+    className: "bg-orange-500/15 text-orange-200",
+    compactClassName: "border-orange-500/25 bg-orange-500/5 text-orange-300",
   },
   transferred: {
     label: "Transferred",
@@ -16,8 +16,8 @@ const STATUS_STYLES = {
   },
   retired: {
     label: "Retired",
-    className: "bg-violet-500/15 text-violet-200",
-    compactClassName: "border-violet-500/25 bg-violet-500/5 text-violet-300",
+    className: "bg-amber-500/15 text-amber-200",
+    compactClassName: "border-amber-500/25 bg-amber-500/5 text-amber-300",
   },
   resigned: {
     label: "Resigned",
@@ -65,8 +65,8 @@ function TeacherStatusSelect({
   const config = getTeacherStatusConfig(status);
 
   const className = compact
-    ? `w-[6.75rem] cursor-pointer appearance-none rounded-md border bg-right bg-no-repeat px-2 py-1 pr-6 text-[11px] font-medium leading-tight outline-none transition focus:border-cyan-500/40 focus:ring-1 focus:ring-cyan-500/20 disabled:cursor-not-allowed disabled:opacity-50 ${config.compactClassName}`
-    : `inline-flex min-w-[8.5rem] cursor-pointer appearance-none rounded-full border-0 bg-right bg-no-repeat px-3 py-1.5 pr-8 text-xs font-semibold outline-none transition focus:ring-2 focus:ring-cyan-400/40 disabled:cursor-not-allowed disabled:opacity-60 ${config.className}`;
+    ? `w-[6.75rem] cursor-pointer appearance-none rounded-md border bg-right bg-no-repeat px-2 py-1 pr-6 text-[11px] font-medium leading-tight outline-none transition focus:border-orange-500/40 focus:ring-1 focus:ring-orange-500/20 disabled:cursor-not-allowed disabled:opacity-50 ${config.compactClassName}`
+    : `inline-flex min-w-[8.5rem] cursor-pointer appearance-none rounded-full border-0 bg-right bg-no-repeat px-3 py-1.5 pr-8 text-xs font-semibold outline-none transition focus:ring-2 focus:ring-orange-400/40 disabled:cursor-not-allowed disabled:opacity-60 ${config.className}`;
 
   const chevronStyle = compact
     ? {

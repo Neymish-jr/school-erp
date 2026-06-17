@@ -198,7 +198,7 @@ function TeacherAdministrativeChargesManager({
       {!hideHeader && (
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">
+            <p className="text-sm uppercase tracking-[0.3em] text-orange-300">
               Staff Management
             </p>
             <h1 className="mt-3 text-4xl font-bold text-white">
@@ -211,7 +211,7 @@ function TeacherAdministrativeChargesManager({
           <button
             type="button"
             onClick={openAddModal}
-            className="inline-flex items-center justify-center rounded-2xl bg-cyan-500 px-4 py-3 font-semibold text-slate-950 transition hover:bg-cyan-400"
+            className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-4 py-3 font-semibold text-white transition hover:bg-orange-400"
           >
             + Assign Charge
           </button>
@@ -228,7 +228,7 @@ function TeacherAdministrativeChargesManager({
           <button
             type="button"
             onClick={openAddModal}
-            className="rounded-xl bg-cyan-500 px-3 py-2 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400"
+            className="rounded-xl bg-orange-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-orange-400"
           >
             + Assign Charge
           </button>
@@ -277,7 +277,7 @@ function TeacherAdministrativeChargesManager({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={teacherId ? "Search charges or year" : "Search teachers, charges..."}
-              className="w-full md:w-64 rounded-2xl border border-slate-700 bg-slate-950 px-4 py-2 text-sm text-white outline-none transition focus:border-cyan-400"
+              className="w-full md:w-64 rounded-2xl border border-slate-700 bg-slate-950 px-4 py-2 text-sm text-white outline-none transition focus:border-orange-400"
             />
             <button
               type="button"
@@ -341,7 +341,7 @@ function TeacherAdministrativeChargesManager({
                         {a.teacher_name}
                       </td>
                     )}
-                    <td className="px-4 py-4 font-medium text-cyan-100">
+                    <td className="px-4 py-4 font-medium text-orange-100">
                       {a.charge_name}
                       {a.remarks && <p className="text-xs text-slate-400 mt-1 font-normal line-clamp-1">{a.remarks}</p>}
                     </td>
@@ -352,7 +352,7 @@ function TeacherAdministrativeChargesManager({
                     )}
                     <td className="px-4 py-4 whitespace-nowrap text-slate-400">{a.assigned_by_user_name || "System"}</td>
                     <td className="px-4 py-4 whitespace-nowrap">
-                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${a.is_additional_charge ? "bg-purple-500/15 text-purple-200" : "bg-blue-500/15 text-blue-200"}`}>
+                      <span className={`rounded-full px-2 py-1 text-xs font-semibold ${a.is_additional_charge ? "bg-amber-500/15 text-amber-200" : "bg-amber-500/15 text-amber-200"}`}>
                         {a.is_additional_charge ? "Additional" : "Primary"}
                       </span>
                     </td>
@@ -390,7 +390,7 @@ function TeacherAdministrativeChargesManager({
                     value={formData.teacher_id}
                     onChange={handleInputChange}
                     required
-                    className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                    className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400"
                   >
                     <option value="">Select teacher</option>
                     {teachers.map(t => (
@@ -407,7 +407,7 @@ function TeacherAdministrativeChargesManager({
                   value={formData.administrative_charge_id}
                   onChange={handleInputChange}
                   required
-                  className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                  className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400"
                 >
                   <option value="">Select available charge</option>
                   {availableCharges.map(c => (
@@ -427,7 +427,7 @@ function TeacherAdministrativeChargesManager({
                     onChange={handleInputChange}
                     required
                     placeholder="e.g. 2025-26"
-                    className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                    className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400"
                   />
                 </label>
               </div>
@@ -440,7 +440,7 @@ function TeacherAdministrativeChargesManager({
                   value={formData.remarks}
                   onChange={handleInputChange}
                   placeholder="Additional details..."
-                  className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                  className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400"
                 />
               </label>
 
@@ -450,7 +450,7 @@ function TeacherAdministrativeChargesManager({
                   name="is_additional_charge"
                   checked={formData.is_additional_charge}
                   onChange={handleInputChange}
-                  className="w-5 h-5 accent-cyan-500 rounded bg-slate-950 border-slate-700"
+                  className="w-5 h-5 accent-orange-500 rounded bg-slate-950 border-slate-700"
                 />
                 This is an additional charge
               </label>
@@ -466,7 +466,7 @@ function TeacherAdministrativeChargesManager({
                 <button
                   type="submit"
                   disabled={isSaving || !formData.teacher_id || !formData.administrative_charge_id}
-                  className="rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-2xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isSaving ? "Saving..." : "Assign Charge"}
                 </button>

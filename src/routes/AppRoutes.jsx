@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Login from "../pages/auth/Login";
 import Dashboard from "../pages/dashboard/Dashboard";
 import ProtectedRoute from "./ProtectedRoute.jsx";
+import SuperAdminRoute from "./SuperAdminRoute.jsx";
 import Students from "../pages/students/Students";
 import Classes from "../pages/classes/Classes";
 import Teachers from "../pages/teachers/Teachers";
@@ -17,6 +18,12 @@ import AdministrativeCharges from "../pages/administrativeCharges/Administrative
 import TeacherAdministrativeCharges from "../pages/teacherAdministrativeCharges/TeacherAdministrativeCharges";
 import TeacherProfile from "../pages/teachers/TeacherProfile";
 import ComingSoon from "../pages/comingSoon/ComingSoon";
+import FinancialYears from "../pages/finance/financialYears/FinancialYears";
+import BudgetStructure from "../pages/finance/budgetStructure/BudgetStructure";
+import BudgetAllocations from "../pages/finance/budgetAllocations/BudgetAllocations";
+import ExpenseRequests from "../pages/finance/expenseRequests/ExpenseRequests";
+import Cashbook from "../pages/finance/cashbook/Cashbook";
+import AdminOrSuperAdminRoute from "./AdminOrSuperAdminRoute.jsx";
 
 function AppRoutes() {
   return (
@@ -142,15 +149,78 @@ function AppRoutes() {
         />
 
         <Route
-          path="/expenses"
+          path="/finance/financial-years"
           element={
             <ProtectedRoute>
-              <ComingSoon />
+              <FinancialYears />
             </ProtectedRoute>
           }
         />
+
+        <Route
+          path="/finance/budget-structure"
+          element={
+            <ProtectedRoute>
+              <SuperAdminRoute>
+                <BudgetStructure />
+              </SuperAdminRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/finance/budget-heads"
+          element={
+            <ProtectedRoute>
+              <SuperAdminRoute>
+                <BudgetStructure />
+              </SuperAdminRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/finance/budget-allocations"
+          element={
+            <ProtectedRoute>
+              <BudgetAllocations />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/finance/expense-requests"
+          element={
+            <ProtectedRoute>
+              <ExpenseRequests />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/finance/cashbook"
+          element={
+            <ProtectedRoute>
+              <AdminOrSuperAdminRoute>
+                <Cashbook />
+              </AdminOrSuperAdminRoute>
+            </ProtectedRoute>
+          }
+        />
+
         <Route
           path="/cashbook"
+          element={
+            <ProtectedRoute>
+              <AdminOrSuperAdminRoute>
+                <Cashbook />
+              </AdminOrSuperAdminRoute>
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/expenses"
           element={
             <ProtectedRoute>
               <ComingSoon />

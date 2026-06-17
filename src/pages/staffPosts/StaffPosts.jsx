@@ -290,8 +290,8 @@ const StaffPosts = () => {
 
   const categoryBadgeVariant = (category) => {
     const map = {
-      Teaching: "cyan",
-      Administrative: "violet",
+      Teaching: "orange",
+      Administrative: "amber",
       Office: "default",
       Support: "amber",
       Contractual: "rose",
@@ -319,13 +319,13 @@ const StaffPosts = () => {
             label="Total Posts"
             value={loading ? "…" : metrics.totalPosts}
             hint="Designation categories"
-            accent="cyan"
+            accent="orange"
           />
           <MetricCard
             label="Sanctioned Strength"
             value={loading ? "…" : metrics.totalSanctioned}
             hint="Approved headcount"
-            accent="violet"
+            accent="amber"
           />
           <MetricCard
             label="Filled Positions"
@@ -414,7 +414,7 @@ const StaffPosts = () => {
                     {post.post_name}
                   </DataTableCell>
                   <DataTableCell align="center" width="10%" centerContent>
-                    <code className="rounded-md bg-slate-800/80 px-2 py-0.5 text-xs text-cyan-300">
+                    <code className="rounded-md bg-slate-800/80 px-2 py-0.5 text-xs text-orange-300">
                       {post.post_code}
                     </code>
                   </DataTableCell>

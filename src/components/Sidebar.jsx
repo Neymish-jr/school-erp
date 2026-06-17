@@ -1,85 +1,183 @@
-import { NavLink, useLocation } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { NavLink } from "react-router-dom";
 import { Icon } from "@iconify/react";
-import navigation from "../config/navigation";
+import { useSidebar } from "../context/SidebarContext";
 
 function Sidebar() {
-  const { pathname } = useLocation();
+  const {
+    navigation,
+    isCollapsed,
+    isMobileOpen,
+    expandedSection,
+    flyoutSection,
+    toggleSection,
+    toggleFlyout,
+    setFlyoutSection,
+    groupHasActiveChild,
+    closeMobile,
+  } = useSidebar();
 
-  const [openGroups, setOpenGroups] = useState(() => {
-    const storedOpenGroups = localStorage.getItem("openNavigationGroups");
-    return storedOpenGroups ? JSON.parse(storedOpenGroups) : {};
-  });
+  const isCompact = isCollapsed && !isMobileOpen;
 
-  useEffect(() => {
-    localStorage.setItem("openNavigationGroups", JSON.stringify(openGroups));
-  }, [openGroups]);
+  const linkClass = ({ isActive }) =>
+    `flex items-center rounded-xl text-sm font-medium transition ${
+      isCompact ? "justify-center px-3 py-3" : "gap-3 px-4 py-3"
+    } ${
+      isActive
+        ? "bg-orange-500 text-white shadow-sm shadow-orange-500/20"
+        : "text-slate-300 hover:bg-slate-800/80 hover:text-white"
+    }`;
 
-  const toggleGroup = (groupLabel) => {
-    setOpenGroups((prev) => ({
-      ...prev,
-      [groupLabel]: !prev[groupLabel],
-    }));
-  };
+  const childLinkClass = ({ isActive }) =>
+    `flex items-center gap-3 rounded-xl px-4 py-2.5 text-sm font-medium transition ${
+      isActive
+        ? "bg-orange-500/15 text-orange-300 ring-1 ring-orange-500/40"
+        : "text-slate-400 hover:bg-slate-800/80 hover:text-slate-200"
+    }`;
+
+  const sidebarWidth = isCompact ? "w-[4.5rem]" : "w-72";
 
   return (
-    <div className="w-72 min-h-screen bg-slate-950 text-white p-5 border-r border-white/10">
-      <h1 className="text-2xl font-bold mb-8 text-cyan-200">
-        School ERP
-      </h1>
+    <>
+      {isMobileOpen ? (
+        <button
+          type="button"
+          aria-label="Close navigation menu"
+          className="fixed inset-0 z-40 bg-slate-950/70 backdrop-blur-sm lg:hidden"
+          onClick={closeMobile}
+        />
+      ) : null}
 
-      <div className="flex flex-col gap-6">
-        {navigation.map((group) => (
-          <div key={group.label}>
-            {group.path ? (
-              <NavLink
-                to={group.path}
-                className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition ${
-                  pathname === group.path
-                    ? "bg-cyan-400 text-slate-950"
-                    : "text-slate-200 hover:bg-slate-800 hover:text-white"
-                }`}
-              >
-                <Icon icon={group.icon} className="h-5 w-5" />
-                {group.label}
-              </NavLink>
-            ) : (
-              <div
-                className="flex cursor-pointer items-center justify-between rounded-xl px-4 py-3 text-sm font-medium text-slate-200 transition hover:bg-slate-800 hover:text-white"
-                onClick={() => toggleGroup(group.label)}
-              >
-                <div className="flex items-center gap-3">
-                  <Icon icon={group.icon} className="h-5 w-5" />
-                  {group.label}
-                </div>
-                <Icon
-                  icon={openGroups[group.label] ? "mdi:chevron-up" : "mdi:chevron-down"}
-                  className="h-5 w-5"
-                />
-              </div>
-            )}
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex min-h-screen shrink-0 flex-col border-r border-slate-800 bg-slate-950 text-white transition-all duration-300 ease-in-out lg:static lg:translate-x-0 ${
+          isMobileOpen ? "translate-x-0" : "-translate-x-full"
+        } ${sidebarWidth} ${isCompact ? "p-3" : "p-5"}`}
+      >
+        <div className={`mb-6 flex items-center ${isCompact ? "justify-center" : ""}`}>
+          {isCompact ? (
+            <span
+              className="flex h-10 w-10 items-center justify-center rounded-xl bg-orange-500/15 text-lg font-bold text-orange-400"
+              title="School ERP"
+            >
+              S
+            </span>
+          ) : (
+            <h1 className="text-2xl font-bold tracking-tight text-orange-400">School ERP</h1>
+          )}
+        </div>
 
-            {group.children && openGroups[group.label] && (
-              <div className="mt-2 flex flex-col gap-2 pl-6">
-                {group.children.map((item) => (
-                  <NavLink
-                    key={item.path}
-                    to={item.path}
-                    className={`flex items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium transition ${
-                      pathname === item.path
-                        ? "bg-cyan-400 text-slate-950"
-                        : "text-slate-200 hover:bg-slate-800 hover:text-white"
-                    }`}
-                  >
-                    {item.label}
-                  </NavLink>
-                ))}
+        <nav className="erp-scrollbar flex flex-1 flex-col gap-2 overflow-y-auto overflow-x-hidden pb-4">
+          {navigation.map((group) => {
+            const isGroupActive = groupHasActiveChild(group);
+            const isGroupOpen = expandedSection === group.label;
+            const isFlyoutOpen = flyoutSection === group.label;
+
+            if (group.path) {
+              return (
+                <NavLink
+                  key={group.label}
+                  to={group.path}
+                  className={linkClass}
+                  title={isCompact ? group.label : undefined}
+                  onClick={() => {
+                    setFlyoutSection(null);
+                    closeMobile();
+                  }}
+                >
+                  {({ isActive }) => (
+                    <>
+                      <Icon
+                        icon={group.icon}
+                        className={`h-5 w-5 shrink-0 ${isActive ? "text-white" : "text-slate-400"}`}
+                      />
+                      {!isCompact ? <span>{group.label}</span> : null}
+                    </>
+                  )}
+                </NavLink>
+              );
+            }
+
+            return (
+              <div key={group.label} className="relative">
+                <button
+                  type="button"
+                  title={isCompact ? group.label : undefined}
+                  aria-expanded={isCompact ? isFlyoutOpen : isGroupOpen}
+                  className={`flex w-full items-center rounded-xl text-sm font-medium transition ${
+                    isCompact ? "justify-center px-3 py-3" : "justify-between px-4 py-3"
+                  } ${
+                    isGroupActive
+                      ? "border-l-2 border-orange-500 bg-orange-500/10 text-orange-300"
+                      : isGroupOpen || isFlyoutOpen
+                        ? "bg-slate-900/80 text-slate-200"
+                        : "text-slate-300 hover:bg-slate-800/80 hover:text-white"
+                  }`}
+                  onClick={() => {
+                    if (isCompact) {
+                      toggleFlyout(group.label);
+                    } else {
+                      toggleSection(group.label);
+                    }
+                  }}
+                >
+                  <div className={`flex items-center ${isCompact ? "" : "gap-3"}`}>
+                    <Icon
+                      icon={group.icon}
+                      className={`h-5 w-5 shrink-0 ${isGroupActive ? "text-orange-400" : "text-slate-400"}`}
+                    />
+                    {!isCompact ? <span>{group.label}</span> : null}
+                  </div>
+                  {!isCompact ? (
+                    <Icon
+                      icon={isGroupOpen ? "mdi:chevron-up" : "mdi:chevron-down"}
+                      className={`h-5 w-5 shrink-0 ${isGroupActive ? "text-orange-400" : "text-slate-500"}`}
+                    />
+                  ) : null}
+                </button>
+
+                {!isCompact && isGroupOpen && group.children ? (
+                  <div className="mt-1 flex flex-col gap-1 border-l border-slate-800 pl-4">
+                    {group.children.map((item) => (
+                      <NavLink
+                        key={item.path}
+                        to={item.path}
+                        className={childLinkClass}
+                        onClick={() => {
+                          setFlyoutSection(null);
+                          closeMobile();
+                        }}
+                      >
+                        {item.label}
+                      </NavLink>
+                    ))}
+                  </div>
+                ) : null}
+
+                {isCompact && isFlyoutOpen && group.children ? (
+                  <div className="absolute left-full top-0 z-50 ml-2 min-w-[12rem] rounded-xl border border-slate-800 bg-slate-950 p-2 shadow-xl shadow-black/40">
+                    <p className="px-3 py-2 text-xs font-semibold uppercase tracking-wide text-orange-400/90">
+                      {group.label}
+                    </p>
+                    {group.children.map((item) => (
+                      <NavLink
+                        key={item.path}
+                        to={item.path}
+                        className={childLinkClass}
+                        onClick={() => {
+                          setFlyoutSection(null);
+                          closeMobile();
+                        }}
+                      >
+                        {item.label}
+                      </NavLink>
+                    ))}
+                  </div>
+                ) : null}
               </div>
-            )}
-          </div>
-        ))}
-      </div>
-    </div>
+            );
+          })}
+        </nav>
+      </aside>
+    </>
   );
 }
 

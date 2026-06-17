@@ -174,7 +174,7 @@ function TeacherProfile() {
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <div className="flex items-center gap-2 text-sm text-slate-400">
-              <Link to="/teachers" className="hover:text-cyan-400 transition-colors">
+              <Link to="/teachers" className="hover:text-orange-400 transition-colors">
                 Teachers
               </Link>
               <span>/</span>
@@ -189,7 +189,7 @@ function TeacherProfile() {
                 className={
                   staffPostName === NOT_ASSIGNED_STAFF_POST
                     ? "text-slate-400"
-                    : "font-semibold text-cyan-400"
+                    : "font-semibold text-orange-400"
                 }
               >
                 {staffPostName}
@@ -228,7 +228,7 @@ function TeacherProfile() {
                 className={`mb-2 text-center text-sm font-semibold ${
                   staffPostName === NOT_ASSIGNED_STAFF_POST
                     ? "text-slate-400"
-                    : "text-cyan-400"
+                    : "text-orange-400"
                 }`}
               >
                 {staffPostName}
@@ -290,7 +290,7 @@ function TeacherProfile() {
                   onClick={() => setActiveTab(tab.id)}
                   className={`rounded-xl px-4 py-2 text-sm font-medium transition-colors ${
                     activeTab === tab.id
-                      ? "bg-cyan-500/10 text-cyan-400"
+                      ? "bg-orange-500/10 text-orange-400"
                       : "text-slate-400 hover:bg-slate-800 hover:text-slate-200"
                   }`}
                 >

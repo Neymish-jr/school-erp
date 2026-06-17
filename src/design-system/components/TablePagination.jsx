@@ -85,7 +85,7 @@ function TablePagination({
                 disabled={isLoading}
                 className={`min-w-[2.25rem] rounded-lg px-2.5 py-2 text-sm font-medium tabular-nums transition ${
                   item === page
-                    ? "bg-cyan-500 text-slate-950"
+                    ? "bg-orange-500 text-white"
                     : "text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-50"
                 }`}
               >

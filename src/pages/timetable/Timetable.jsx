@@ -378,12 +378,12 @@ function Timetable() {
     <DashboardLayout>
       <div className="space-y-8">
 
-        <div className="rounded-[28px] border border-cyan-400/20 bg-slate-950 p-6">
+        <div className="rounded-[28px] border border-orange-400/20 bg-slate-950 p-6">
 
           <div className="flex items-center justify-between flex-wrap gap-4">
 
             <div>
-              <p className="inline-flex items-center gap-2 rounded-full border border-cyan-400/40 bg-cyan-500/10 px-3 py-1 text-sm font-medium text-cyan-200">
+              <p className="inline-flex items-center gap-2 rounded-full border border-orange-400/40 bg-orange-500/10 px-3 py-1 text-sm font-medium text-orange-200">
                 <Sparkles size={16} />
                 Timetable Management
               </p>
@@ -401,7 +401,7 @@ function Timetable() {
               onClick={() =>
                 setIsModalOpen(true)
               }
-              className="inline-flex items-center gap-2 rounded-xl bg-cyan-400 px-5 py-3 font-semibold text-slate-950"
+              className="inline-flex items-center gap-2 rounded-xl bg-orange-400 px-5 py-3 font-semibold text-white"
             >
               <Plus size={16} />
               Add Timetable
@@ -414,7 +414,7 @@ function Timetable() {
           <div className="flex items-center justify-between flex-wrap gap-4">
 
             <div>
-              <p className="text-sm uppercase tracking-[0.3em] text-cyan-200">
+              <p className="text-sm uppercase tracking-[0.3em] text-orange-200">
                 Filter
               </p>
 
@@ -425,7 +425,7 @@ function Timetable() {
 
             <div className="flex items-center gap-3">
 
-              <div className="inline-flex items-center gap-2 rounded-xl border border-cyan-400/30 bg-slate-950/60 px-3 py-2 text-sm text-slate-200">
+              <div className="inline-flex items-center gap-2 rounded-xl border border-orange-400/30 bg-slate-950/60 px-3 py-2 text-sm text-slate-200">
                 <Filter size={16} />
                 Filter Class
               </div>
@@ -489,7 +489,7 @@ function Timetable() {
                       }
                     </h3>
 
-                    <span className="rounded-full bg-cyan-500/10 px-3 py-1 text-sm text-cyan-200">
+                    <span className="rounded-full bg-orange-500/10 px-3 py-1 text-sm text-orange-200">
                       {entries.length}{" "}
                       periods
                     </span>
@@ -578,7 +578,7 @@ function Timetable() {
             <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">
+                  <p className="text-sm uppercase tracking-[0.3em] text-orange-300">
                     Timetable Entry
                   </p>
 
@@ -607,7 +607,7 @@ function Timetable() {
                     name="class_section_id"
                     value={formData.class_section_id}
                     onChange={handleChange}
-                    className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                    className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400"
                   >
                     <option value="">
                       Select class section
@@ -630,7 +630,7 @@ function Timetable() {
                     name="subject_id"
                     value={formData.subject_id}
                     onChange={handleChange}
-                    className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                    className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400"
                   >
                     <option value="">
                       Select subject
@@ -653,7 +653,7 @@ function Timetable() {
                     name="teacher_id"
                     value={formData.teacher_id}
                     onChange={handleChange}
-                    className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                    className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400"
                   >
                     <option value="">
                       Select teacher
@@ -685,7 +685,7 @@ function Timetable() {
                           key={day}
                           className={`rounded-2xl border px-4 py-3 text-sm transition ${
                             isSelected
-                              ? "border-cyan-400 bg-cyan-500/10"
+                              ? "border-orange-400 bg-orange-500/10"
                               : "border-slate-700 bg-slate-950"
                           }`}
                         >
@@ -698,7 +698,7 @@ function Timetable() {
                               type="checkbox"
                               checked={isSelected}
                               onChange={() => handleDayChange(day)}
-                              className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-cyan-500"
+                              className="h-4 w-4 rounded border-slate-600 bg-slate-900 text-orange-500"
                             />
                           </div>
                         </label>
@@ -715,7 +715,7 @@ function Timetable() {
                     name="period_number"
                     value={formData.period_number}
                     onChange={handleChange}
-                    className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                    className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400"
                     placeholder="e.g. 1"
                   />
                 </label>
@@ -727,7 +727,7 @@ function Timetable() {
                     name="start_time"
                     value={formData.start_time}
                     onChange={handleChange}
-                    className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                    className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400"
                   />
                 </label>
 
@@ -738,7 +738,7 @@ function Timetable() {
                     name="end_time"
                     value={formData.end_time}
                     onChange={handleChange}
-                    className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-cyan-400"
+                    className="mt-2 w-full rounded-2xl border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-orange-400"
                   />
                 </label>
 
@@ -754,7 +754,7 @@ function Timetable() {
                   <button
                     type="submit"
                     disabled={isSaving}
-                    className="inline-flex items-center gap-2 rounded-2xl bg-cyan-500 px-4 py-3 text-sm font-semibold text-slate-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="inline-flex items-center gap-2 rounded-2xl bg-orange-500 px-4 py-3 text-sm font-semibold text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <Save size={16} />
                     {isSaving

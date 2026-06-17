@@ -35,18 +35,17 @@ function Login() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-900">
-      <div className="bg-slate-800 p-8 rounded-xl shadow-lg w-96">
-        <h1 className="text-3xl font-bold text-white mb-6 text-center">
-          School ERP Login
-        </h1>
+    <div className="flex min-h-screen items-center justify-center bg-slate-950">
+      <div className="w-96 rounded-2xl border border-slate-800 bg-slate-900 p-8 shadow-xl">
+        <h1 className="mb-2 text-center text-3xl font-bold text-white">School ERP</h1>
+        <p className="mb-6 text-center text-sm text-orange-400/80">Government School Management</p>
 
         <input
           type="email"
           name="email"
           placeholder="Email"
           onChange={handleChange}
-          className="w-full p-3 mb-4 rounded bg-slate-700 text-white outline-none"
+          className="mb-4 w-full rounded-xl border border-slate-700 bg-slate-950 p-3 text-white outline-none transition focus:border-orange-500/60 focus:ring-2 focus:ring-orange-500/20"
         />
 
         <input
@@ -54,12 +53,12 @@ function Login() {
           name="password"
           placeholder="Password"
           onChange={handleChange}
-          className="w-full p-3 mb-4 rounded bg-slate-700 text-white outline-none"
+          className="mb-6 w-full rounded-xl border border-slate-700 bg-slate-950 p-3 text-white outline-none transition focus:border-orange-500/60 focus:ring-2 focus:ring-orange-500/20"
         />
 
         <button
           onClick={handleLogin}
-          className="w-full bg-blue-600 hover:bg-blue-700 p-3 rounded text-white font-semibold"
+          className="w-full rounded-xl bg-orange-500 p-3 font-semibold text-white transition hover:bg-orange-400 focus:outline-none focus:ring-2 focus:ring-orange-500/40"
         >
           Login
         </button>

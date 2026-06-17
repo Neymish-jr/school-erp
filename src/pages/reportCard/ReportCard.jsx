@@ -137,7 +137,7 @@ function ReportCard() {
       <div className="space-y-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="text-sm uppercase tracking-[0.3em] text-cyan-300">
+            <p className="text-sm uppercase tracking-[0.3em] text-orange-300">
               Student Report Card
             </p>
             <h1 className="mt-3 text-4xl font-bold text-white">
@@ -173,7 +173,7 @@ function ReportCard() {
               </select>
             </label>
 
-            <div className="rounded-2xl border border-cyan-500/30 bg-slate-950/70 px-4 py-4">
+            <div className="rounded-2xl border border-orange-500/30 bg-slate-950/70 px-4 py-4">
               <p className="text-sm text-slate-300">Overview</p>
               <p className="mt-2 text-sm text-slate-200">
                 {selectedStudent
