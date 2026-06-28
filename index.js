@@ -56,6 +56,7 @@ const {
 const errorHandler = require("./middleware/errorHandler");
 const swaggerUi = require("swagger-ui-express");
 const swaggerSpecs = require("./swagger");
+const { runPendingMigrations } = require("./utils/migrationRunner");
 
 app.use(cors());
 app.use(helmet());
@@ -558,80 +559,8 @@ pool.query(`
   console.error("Failed to create idx_expense_requests_creator index", err);
 });
 
-const runFinanceActivityBridgeMigration = async () => {
-  const migrationPath = path.join(
-    __dirname,
-    "migrations",
-    "017_finance_activity_expense_request_bridge.sql"
-  );
-
-  if (!fs.existsSync(migrationPath)) {
-    return;
-  }
-
-  await pool.query(fs.readFileSync(migrationPath, "utf8"));
-  console.log("Finance activity/expense request bridge migration 017 applied.");
-};
-
-runFinanceActivityBridgeMigration().catch((err) => {
-  console.error("Failed to apply finance activity bridge migration", err);
-});
-
-const runActivityWorkflowMigration = async () => {
-  const migrationPath = path.join(
-    __dirname,
-    "migrations",
-    "018_activity_workflow.sql"
-  );
-
-  if (!fs.existsSync(migrationPath)) {
-    return;
-  }
-
-  await pool.query(fs.readFileSync(migrationPath, "utf8"));
-  console.log("Activity workflow migration 018 applied.");
-};
-
-runActivityWorkflowMigration().catch((err) => {
-  console.error("Failed to apply activity workflow migration", err);
-});
-
-const runQuotationExpenseRequestMigration = async () => {
-  const migrationPath = path.join(
-    __dirname,
-    "migrations",
-    "019_quotations_expense_request.sql"
-  );
-
-  if (!fs.existsSync(migrationPath)) {
-    return;
-  }
-
-  await pool.query(fs.readFileSync(migrationPath, "utf8"));
-  console.log("Quotation expense request migration 019 applied.");
-};
-
-runQuotationExpenseRequestMigration().catch((err) => {
-  console.error("Failed to apply quotation expense request migration", err);
-});
-
-const runStockRegisterMigration = async () => {
-  const migrationPath = path.join(
-    __dirname,
-    "migrations",
-    "020_stock_register.sql"
-  );
-
-  if (!fs.existsSync(migrationPath)) {
-    return;
-  }
-
-  await pool.query(fs.readFileSync(migrationPath, "utf8"));
-  console.log("Stock register migration 020 applied.");
-};
-
-runStockRegisterMigration().catch((err) => {
-  console.error("Failed to apply stock register migration", err);
+runPendingMigrations(pool).catch((err) => {
+  console.error("Failed to apply pending migrations", err);
 });
 
 pool.query(`
