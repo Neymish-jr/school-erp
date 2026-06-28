@@ -7,6 +7,10 @@ require("dotenv").config({ path: require("path").join(__dirname, "..", ".env") }
 
 const jwt = require("jsonwebtoken");
 const pool = require("../db");
+const {
+  LEGACY_ROLES,
+  isSuperAdminLegacy,
+} = require("../../shared/constants/roles");
 
 const assert = (condition, message) => {
   if (!condition) throw new Error(message);
@@ -20,7 +24,7 @@ const navigation = [
       {
         label: "Budget Structure",
         path: "/finance/budget-structure",
-        roles: ["super_admin"],
+        roles: [LEGACY_ROLES.SUPER_ADMIN],
       },
       { label: "Budget Allocations", path: "/finance/budget-allocations" },
     ],
@@ -49,12 +53,16 @@ const decodeRoleFromToken = (token) => {
   return payload.role;
 };
 
-const canAccessBudgetStructureRoute = (role) => role === "super_admin";
+const canAccessBudgetStructureRoute = (role) => isSuperAdminLegacy(role);
 
 const run = async () => {
   console.log("Finance Budget Structure RBAC tests\n");
 
-  for (const role of ["super_admin", "admin", "teacher"]) {
+  for (const role of [
+    LEGACY_ROLES.SUPER_ADMIN,
+    LEGACY_ROLES.ADMIN,
+    LEGACY_ROLES.TEACHER,
+  ]) {
     const financeNav = getVisibleNavigation(role).find((group) => group.label === "Finance");
     const hasBudgetStructure = financeNav?.children?.some(
       (item) => item.label === "Budget Structure"
@@ -66,11 +74,11 @@ const run = async () => {
       (item) => item.label === "Financial Years"
     );
 
-    assert(hasBudgetStructure === (role === "super_admin"), `${role}: Budget Structure nav visibility`);
+    assert(hasBudgetStructure === isSuperAdminLegacy(role), `${role}: Budget Structure nav visibility`);
     assert(hasAllocations === true, `${role}: Budget Allocations remains visible`);
     assert(hasFinancialYears === true, `${role}: Financial Years remains visible`);
     assert(
-      canAccessBudgetStructureRoute(role) === (role === "super_admin"),
+      canAccessBudgetStructureRoute(role) === isSuperAdminLegacy(role),
       `${role}: route guard allows only super_admin`
     );
 

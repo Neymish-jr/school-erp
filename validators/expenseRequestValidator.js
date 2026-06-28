@@ -18,7 +18,21 @@ const expenseRequestSchema = Joi.object({
   }),
   vendor_name: Joi.string().trim().max(150).allow("", null).optional(),
   remarks: Joi.string().trim().max(500).allow("", null).optional(),
-}).required();
+  activity_id: Joi.number().integer().positive().allow(null).optional(),
+  item_name: Joi.string().trim().max(255).allow("", null).optional(),
+  quantity: Joi.number().precision(2).positive().allow(null).optional(),
+})
+  .custom((value, helpers) => {
+    const quantity = value.quantity;
+    const itemName = String(value.item_name ?? "").trim();
+
+    if (quantity != null && !itemName) {
+      return helpers.message("item_name is required when quantity is provided");
+    }
+
+    return value;
+  })
+  .required();
 
 const expenseRequestRejectSchema = Joi.object({
   rejection_remarks: Joi.string().trim().min(5).max(500).required().messages({
@@ -36,6 +50,20 @@ const expenseRequestMarkPaidSchema = Joi.object({
     "any.required": "Payment transaction ID is required",
   }),
   paid_at: Joi.date().iso().optional(),
+  create_stock_entry: Joi.boolean().optional(),
+  stock_category: Joi.string()
+    .valid(...require("../constants/stockCategories").STOCK_CATEGORIES)
+    .when("create_stock_entry", {
+      is: true,
+      then: Joi.required(),
+      otherwise: Joi.optional(),
+    }),
+  stock_unit: Joi.string().trim().min(1).max(50).when("create_stock_entry", {
+    is: true,
+    then: Joi.required(),
+    otherwise: Joi.optional(),
+  }),
+  purchase_rate: Joi.number().precision(2).positive().optional(),
 }).required();
 
 const expenseRequestListQuerySchema = Joi.object({
@@ -45,6 +73,7 @@ const expenseRequestListQuerySchema = Joi.object({
   budget_allocation_id: Joi.number().integer().positive().optional(),
   financial_year_id: Joi.number().integer().positive().optional(),
   submitted_by_user_id: Joi.number().integer().positive().optional(),
+  activity_id: Joi.number().integer().positive().optional(),
 }).unknown(true);
 
 module.exports = {

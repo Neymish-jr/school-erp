@@ -10,7 +10,8 @@ const createTeacher = async (req, res) => {
     designation,
     phone,
     age,
-    gender
+    gender,
+    employee_code,
   } = req.body;
 
   const result = await pool.query(
@@ -23,9 +24,10 @@ const createTeacher = async (req, res) => {
       age,
       gender,
       school_id,
-      status
+      status,
+      employee_code
     )
-    VALUES ($1, $2, $3, $4, $5, $6, $7)
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
     RETURNING *
     `,
     [
@@ -35,7 +37,8 @@ const createTeacher = async (req, res) => {
       age,
       gender,
       req.user.school_id,
-      "active"
+      "active",
+      employee_code?.trim() || null,
     ]
   );
 
@@ -145,7 +148,8 @@ const updateTeacher = async (req, res) => {
     subject,
     qualification,
     gender,
-    status
+    status,
+    employee_code,
   } = req.body;
 
   const existingResult = await pool.query(
@@ -174,9 +178,10 @@ const updateTeacher = async (req, res) => {
       subject = $4,
       qualification = $5,
       gender = $6,
-      status = $7
-    WHERE id = $8
-    AND school_id = $9
+      status = $7,
+      employee_code = $8
+    WHERE id = $9
+    AND school_id = $10
     RETURNING *
     `,
     [
@@ -187,6 +192,9 @@ const updateTeacher = async (req, res) => {
       qualification !== undefined ? qualification : existing.qualification,
       gender ?? existing.gender,
       status ?? existing.status,
+      employee_code !== undefined
+        ? (employee_code?.trim() || null)
+        : existing.employee_code,
       id,
       req.user.school_id
     ]

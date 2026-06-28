@@ -1,68 +1,140 @@
-const pool = require("../db");
+const activityService = require("../services/activityService");
 const { successResponse, errorResponse } = require("../utils/response");
+const {
+  resolveSchoolIdForWrite,
+  resolveSchoolScope,
+} = require("../utils/tenantScope");
 
-const buildSchoolClause = (role, schoolId, params, tableAlias = "activities") => {
-  if (role !== "super_admin" && schoolId != null) {
-    params.push(schoolId);
-    return ` AND ${tableAlias}.school_id = $${params.length}`;
+const getUserId = (req) => req.user?.id;
+const getTeacherId = (req) => req.user?.teacher_id ?? null;
+
+const handleServiceError = (res, err) => {
+  if (err.statusCode) {
+    return errorResponse(res, {
+      message: err.message,
+      error: err.message,
+      status: err.statusCode,
+    });
   }
 
-  return "";
+  console.error(err);
+  return errorResponse(res, {
+    message: "Unexpected error processing activity",
+    error: err.message,
+    status: 500,
+  });
 };
 
-const resolveSchoolIdForWrite = (req, res) => {
-  const { school_id: schoolId } = req.user;
-
-  if (schoolId == null) {
-    errorResponse(res, {
-      message: "School context is required for this operation",
-      error: "Missing school_id",
-      status: 400,
-    });
+const getScopeContext = (req, res) => {
+  const scope = resolveSchoolScope(req, res);
+  if (!scope) {
     return null;
   }
 
-  return schoolId;
+  return {
+    ...scope,
+    userId: getUserId(req),
+    teacherId: getTeacherId(req),
+  };
 };
 
-// GET ACTIVITIES
 const getActivities = async (req, res) => {
   try {
-    const { school_id: schoolId, role } = req.user;
-    const params = [];
-    const schoolClause = buildSchoolClause(role, schoolId, params);
+    const scope = getScopeContext(req, res);
+    if (!scope) {
+      return;
+    }
 
-    const result = await pool.query(
-      `
-      SELECT
-        activities.*,
-        teachers.teacher_name,
-        teachers.designation,
-        schools.school_name
-      FROM activities
-      LEFT JOIN teachers
-        ON activities.assigned_teacher_id = teachers.id
-      LEFT JOIN schools
-        ON activities.school_id = schools.id
-      WHERE 1 = 1
-      ${schoolClause}
-      ORDER BY activities.id DESC
-      `,
-      params
-    );
-
-    return successResponse(res, { data: result.rows });
-  } catch (err) {
-    console.error(err);
-    return errorResponse(res, {
-      message: "Error fetching activities",
-      error: err.message,
-      status: 500,
+    const data = await activityService.listActivities({
+      schoolId: scope.schoolId,
+      role: scope.role,
+      teacherId: scope.teacherId,
+      status: req.query.status,
+      financialYearId: req.query.financial_year_id
+        ? Number(req.query.financial_year_id)
+        : undefined,
     });
+
+    return successResponse(res, {
+      message: "Activities fetched successfully",
+      data,
+    });
+  } catch (err) {
+    return handleServiceError(res, err);
   }
 };
 
-// CREATE ACTIVITY
+const getActivityDashboard = async (req, res) => {
+  try {
+    const scope = getScopeContext(req, res);
+    if (!scope) {
+      return;
+    }
+
+    const data = await activityService.getActivityDashboard({
+      schoolId: scope.schoolId,
+      role: scope.role,
+      teacherId: scope.teacherId,
+      financialYearId: req.query.financial_year_id
+        ? Number(req.query.financial_year_id)
+        : undefined,
+    });
+
+    return successResponse(res, {
+      message: "Activity dashboard fetched successfully",
+      data,
+    });
+  } catch (err) {
+    return handleServiceError(res, err);
+  }
+};
+
+const getActivityById = async (req, res) => {
+  try {
+    const scope = getScopeContext(req, res);
+    if (!scope) {
+      return;
+    }
+
+    const data = await activityService.getActivityById({
+      id: Number(req.params.id),
+      schoolId: scope.schoolId,
+      role: scope.role,
+      teacherId: scope.teacherId,
+    });
+
+    return successResponse(res, {
+      message: "Activity fetched successfully",
+      data,
+    });
+  } catch (err) {
+    return handleServiceError(res, err);
+  }
+};
+
+const getActivityTimeline = async (req, res) => {
+  try {
+    const scope = getScopeContext(req, res);
+    if (!scope) {
+      return;
+    }
+
+    const data = await activityService.getActivityTimeline({
+      id: Number(req.params.id),
+      schoolId: scope.schoolId,
+      role: scope.role,
+      teacherId: scope.teacherId,
+    });
+
+    return successResponse(res, {
+      message: "Activity timeline fetched successfully",
+      data,
+    });
+  } catch (err) {
+    return handleServiceError(res, err);
+  }
+};
+
 const createActivity = async (req, res) => {
   try {
     const schoolId = resolveSchoolIdForWrite(req, res);
@@ -70,150 +142,168 @@ const createActivity = async (req, res) => {
       return;
     }
 
-    const {
-      activity_name,
-      description,
-      allocated_budget,
-      assigned_teacher_id,
-    } = req.body;
+    const { role, teacher_id: teacherId } = req.user;
+    let assignedTeacherId = Number(req.body.assigned_teacher_id);
 
-    if (
-      !activity_name ||
-      !description ||
-      !allocated_budget ||
-      !assigned_teacher_id
-    ) {
-      return errorResponse(res, {
-        message: "All fields are required",
-        error: "All fields are required",
-        status: 400,
-      });
+    if (role === "teacher") {
+      if (teacherId == null) {
+        return errorResponse(res, {
+          message: "Teacher profile is required to create activities",
+          error: "Missing teacher_id",
+          status: 400,
+        });
+      }
+
+      assignedTeacherId = Number(teacherId);
     }
 
-    if (allocated_budget <= 0) {
-      return errorResponse(res, {
-        message: "Invalid budget",
-        error: "Invalid budget",
-        status: 400,
-      });
-    }
-
-    const teacherCheck = await pool.query(
-      `
-      SELECT id
-      FROM teachers
-      WHERE id = $1
-        AND school_id = $2
-      `,
-      [assigned_teacher_id, schoolId]
-    );
-
-    if (teacherCheck.rowCount === 0) {
-      return errorResponse(res, {
-        message: "Assigned teacher not found in your school",
-        error: "Teacher not found",
-        status: 404,
-      });
-    }
-
-    const requiresQuotation = allocated_budget > 50000;
-
-    const result = await pool.query(
-      `
-      INSERT INTO activities
-      (
-        activity_name,
-        description,
-        allocated_budget,
-        assigned_teacher_id,
-        school_id,
-        status
-      )
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING *
-      `,
-      [
-        activity_name,
-        description,
-        allocated_budget,
-        assigned_teacher_id,
-        schoolId,
-        "Pending",
-      ]
-    );
+    const data = await activityService.createActivity({
+      schoolId,
+      userId: getUserId(req),
+      activityName: req.body.activity_name,
+      description: req.body.description,
+      allocatedBudget: Number(req.body.allocated_budget),
+      assignedTeacherId,
+      budgetAllocationId:
+        req.body.budget_allocation_id != null && req.body.budget_allocation_id !== ""
+          ? Number(req.body.budget_allocation_id)
+          : null,
+    });
 
     return successResponse(res, {
-      data: { activity: result.rows[0], requiresQuotation },
+      message: "Activity created successfully",
+      data,
+      status: 201,
     });
   } catch (err) {
-    console.error(err);
-    return errorResponse(res, {
-      message: "Error adding activity",
-      error: err.message,
-      status: 500,
-    });
+    return handleServiceError(res, err);
   }
 };
 
-// UPDATE ACTIVITY STATUS
+const submitActivity = async (req, res) => {
+  try {
+    const scope = getScopeContext(req, res);
+    if (!scope) {
+      return;
+    }
+
+    const data = await activityService.submitActivity({
+      id: Number(req.params.id),
+      schoolId: scope.schoolId,
+      userId: scope.userId,
+      role: scope.role,
+      teacherId: scope.teacherId,
+    });
+
+    return successResponse(res, {
+      message: "Activity submitted successfully",
+      data,
+    });
+  } catch (err) {
+    return handleServiceError(res, err);
+  }
+};
+
+const approveActivity = async (req, res) => {
+  try {
+    const schoolId = resolveSchoolIdForWrite(req, res);
+    if (schoolId == null) {
+      return;
+    }
+
+    const data = await activityService.approveActivity({
+      id: Number(req.params.id),
+      schoolId,
+      reviewerUserId: getUserId(req),
+    });
+
+    return successResponse(res, {
+      message: "Activity approved successfully",
+      data,
+    });
+  } catch (err) {
+    return handleServiceError(res, err);
+  }
+};
+
+const rejectActivity = async (req, res) => {
+  try {
+    const schoolId = resolveSchoolIdForWrite(req, res);
+    if (schoolId == null) {
+      return;
+    }
+
+    const data = await activityService.rejectActivity({
+      id: Number(req.params.id),
+      schoolId,
+      reviewerUserId: getUserId(req),
+      rejectionRemarks: String(req.body.rejection_remarks || "").trim(),
+    });
+
+    return successResponse(res, {
+      message: "Activity rejected successfully",
+      data,
+    });
+  } catch (err) {
+    return handleServiceError(res, err);
+  }
+};
+
+const completeActivity = async (req, res) => {
+  try {
+    const scope = getScopeContext(req, res);
+    if (!scope) {
+      return;
+    }
+
+    const data = await activityService.completeActivity({
+      id: Number(req.params.id),
+      schoolId: scope.schoolId,
+      userId: scope.userId,
+      role: scope.role,
+      teacherId: scope.teacherId,
+    });
+
+    return successResponse(res, {
+      message: "Activity completed successfully",
+      data,
+    });
+  } catch (err) {
+    return handleServiceError(res, err);
+  }
+};
+
 const updateActivityStatus = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { status } = req.body;
-    const { school_id: schoolId, role } = req.user;
-    const allowedStatuses = [
-      "Pending",
-      "Approved",
-      "Rejected",
-      "Completed",
-    ];
-
-    if (!allowedStatuses.includes(status)) {
-      return errorResponse(res, {
-        message: "Invalid status",
-        error: "Invalid status",
-        status: 400,
-      });
+    const scope = getScopeContext(req, res);
+    if (!scope) {
+      return;
     }
 
-    const params = [status, id];
-    const schoolClause = buildSchoolClause(role, schoolId, params);
-
-    const result = await pool.query(
-      `
-      UPDATE activities
-      SET status = $1
-      WHERE id = $2
-      ${schoolClause}
-      RETURNING *
-      `,
-      params
-    );
-
-    if (result.rowCount === 0) {
-      return errorResponse(res, {
-        message: "Activity not found",
-        error: "Activity not found",
-        status: 404,
-      });
-    }
-
-    return successResponse(res, { data: result.rows[0] });
-  } catch (err) {
-    console.error(err);
-    return errorResponse(res, {
-      message: "Error updating status",
-      error: err.message,
-      status: 500,
+    const data = await activityService.updateActivityStatusLegacy({
+      id: Number(req.params.id),
+      schoolId: scope.schoolId,
+      role: scope.role,
+      teacherId: scope.teacherId,
+      status: req.body.status,
+      reviewerUserId: scope.userId,
     });
+
+    return successResponse(res, {
+      message: "Activity status updated successfully",
+      data,
+    });
+  } catch (err) {
+    return handleServiceError(res, err);
   }
 };
 
-// UPLOAD ACTIVITY FILE
 const uploadActivityFile = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { school_id: schoolId, role } = req.user;
+    const scope = getScopeContext(req, res);
+    if (!scope) {
+      return;
+    }
 
     if (!req.file) {
       return errorResponse(res, {
@@ -223,46 +313,33 @@ const uploadActivityFile = async (req, res) => {
       });
     }
 
-    const filePath = req.file.path;
-    const params = [filePath, id];
-    const schoolClause = buildSchoolClause(role, schoolId, params);
-
-    const result = await pool.query(
-      `
-      UPDATE activities
-      SET file_path = $1
-      WHERE id = $2
-      ${schoolClause}
-      RETURNING id
-      `,
-      params
-    );
-
-    if (result.rowCount === 0) {
-      return errorResponse(res, {
-        message: "Activity not found",
-        error: "Activity not found",
-        status: 404,
-      });
-    }
+    const data = await activityService.uploadActivityFile({
+      id: Number(req.params.id),
+      schoolId: scope.schoolId,
+      role: scope.role,
+      teacherId: scope.teacherId,
+      filePath: req.file.path,
+    });
 
     return successResponse(res, {
       message: "File uploaded successfully",
-      data: { file_path: filePath },
+      data,
     });
   } catch (err) {
-    console.error(err);
-    return errorResponse(res, {
-      message: "Upload failed",
-      error: err.message,
-      status: 500,
-    });
+    return handleServiceError(res, err);
   }
 };
 
 module.exports = {
   getActivities,
+  getActivityDashboard,
+  getActivityById,
+  getActivityTimeline,
   createActivity,
+  submitActivity,
+  approveActivity,
+  rejectActivity,
+  completeActivity,
   updateActivityStatus,
   uploadActivityFile,
 };

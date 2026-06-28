@@ -4,25 +4,76 @@ const pool = require("../db");
 const { authenticate, isAdminOrSuperAdmin } = require("../middleware/auth");
 const cashbookEntryService = require("../services/cashbookEntryService");
 
+const buildSchoolClause = (role, schoolId, params, tableAlias) => {
+  if (role !== "super_admin" && schoolId != null) {
+    params.push(schoolId);
+    return ` AND ${tableAlias}.school_id = $${params.length}`;
+  }
+
+  return "";
+};
+
 router.get("/", authenticate, async (req, res) => {
   try {
+    const { school_id: schoolId, role } = req.user;
+
+    const studentParams = [];
+    const studentSchoolClause = buildSchoolClause(
+      role,
+      schoolId,
+      studentParams,
+      "students"
+    );
+
     const students = await pool.query(
       `
       SELECT COUNT(*) FROM students
-      `
+      WHERE is_active = true
+      ${studentSchoolClause}
+      `,
+      studentParams
+    );
+
+    const teacherParams = [];
+    const teacherSchoolClause = buildSchoolClause(
+      role,
+      schoolId,
+      teacherParams,
+      "teachers"
     );
 
     const teachers = await pool.query(
       `
-      SELECT COUNT(*) FROM users
-      WHERE role = 'teacher'
-      `
+      SELECT COUNT(*) FROM teachers
+      WHERE 1 = 1
+      ${teacherSchoolClause}
+      `,
+      teacherParams
+    );
+
+    const classParams = [];
+    const classSchoolClause = buildSchoolClause(
+      role,
+      schoolId,
+      classParams,
+      "classes"
     );
 
     const classes = await pool.query(
       `
       SELECT COUNT(*) FROM classes
-      `
+      WHERE 1 = 1
+      ${classSchoolClause}
+      `,
+      classParams
+    );
+
+    const attendanceParams = [];
+    const attendanceSchoolClause = buildSchoolClause(
+      role,
+      schoolId,
+      attendanceParams,
+      "attendance"
     );
 
     const attendance = await pool.query(
@@ -34,7 +85,10 @@ router.get("/", authenticate, async (req, res) => {
         NULLIF(COUNT(*), 0)
         AS attendance_percentage
       FROM attendance
-      `
+      WHERE 1 = 1
+      ${attendanceSchoolClause}
+      `,
+      attendanceParams
     );
 
     res.json({
@@ -57,7 +111,7 @@ router.get("/", authenticate, async (req, res) => {
 
 router.get("/finance", authenticate, isAdminOrSuperAdmin, async (req, res) => {
   try {
-    const schoolId = req.user?.school_id || 1;
+    const schoolId = req.user?.school_id;
     const role = req.user?.role;
     const financialYearId = req.query.financial_year_id
       ? Number(req.query.financial_year_id)

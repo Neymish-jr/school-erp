@@ -41,6 +41,7 @@ const cors = require("cors");
 const attendanceRoutes = require("./routes/attendanceRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
 const authRoutes = require("./routes/authRoutes");
+const userRoutes = require("./routes/userRoutes");
 const staffPostController = require("./controllers/staffPostController");
 const studentImportRoutes = require(
   "./routes/studentImportRoutes"
@@ -48,6 +49,7 @@ const studentImportRoutes = require(
 const {
   authenticate,
   isAdminLike,
+  isSuperAdmin,
   isTeacher
 } = require("./middleware/auth");
 
@@ -556,6 +558,82 @@ pool.query(`
   console.error("Failed to create idx_expense_requests_creator index", err);
 });
 
+const runFinanceActivityBridgeMigration = async () => {
+  const migrationPath = path.join(
+    __dirname,
+    "migrations",
+    "017_finance_activity_expense_request_bridge.sql"
+  );
+
+  if (!fs.existsSync(migrationPath)) {
+    return;
+  }
+
+  await pool.query(fs.readFileSync(migrationPath, "utf8"));
+  console.log("Finance activity/expense request bridge migration 017 applied.");
+};
+
+runFinanceActivityBridgeMigration().catch((err) => {
+  console.error("Failed to apply finance activity bridge migration", err);
+});
+
+const runActivityWorkflowMigration = async () => {
+  const migrationPath = path.join(
+    __dirname,
+    "migrations",
+    "018_activity_workflow.sql"
+  );
+
+  if (!fs.existsSync(migrationPath)) {
+    return;
+  }
+
+  await pool.query(fs.readFileSync(migrationPath, "utf8"));
+  console.log("Activity workflow migration 018 applied.");
+};
+
+runActivityWorkflowMigration().catch((err) => {
+  console.error("Failed to apply activity workflow migration", err);
+});
+
+const runQuotationExpenseRequestMigration = async () => {
+  const migrationPath = path.join(
+    __dirname,
+    "migrations",
+    "019_quotations_expense_request.sql"
+  );
+
+  if (!fs.existsSync(migrationPath)) {
+    return;
+  }
+
+  await pool.query(fs.readFileSync(migrationPath, "utf8"));
+  console.log("Quotation expense request migration 019 applied.");
+};
+
+runQuotationExpenseRequestMigration().catch((err) => {
+  console.error("Failed to apply quotation expense request migration", err);
+});
+
+const runStockRegisterMigration = async () => {
+  const migrationPath = path.join(
+    __dirname,
+    "migrations",
+    "020_stock_register.sql"
+  );
+
+  if (!fs.existsSync(migrationPath)) {
+    return;
+  }
+
+  await pool.query(fs.readFileSync(migrationPath, "utf8"));
+  console.log("Stock register migration 020 applied.");
+};
+
+runStockRegisterMigration().catch((err) => {
+  console.error("Failed to apply stock register migration", err);
+});
+
 pool.query(`
   CREATE TABLE IF NOT EXISTS cashbook_entries (
     id SERIAL PRIMARY KEY,
@@ -627,6 +705,20 @@ pool.query(`
   console.error("Failed to initialize teacher_staff_post_assignments table", err);
 });
 
+pool.query(`
+  ALTER TABLE IF EXISTS teachers
+  ADD COLUMN IF NOT EXISTS employee_code VARCHAR(50) NULL
+`).catch((err) => {
+  console.error("Failed to add employee_code to teachers table", err);
+});
+
+pool.query(`
+  ALTER TABLE IF EXISTS users
+  ADD COLUMN IF NOT EXISTS teacher_id INTEGER NULL REFERENCES teachers(id) ON DELETE SET NULL
+`).catch((err) => {
+  console.error("Failed to add teacher_id to users table", err);
+});
+
 app.use(limiter);
 app.use(express.json());
 app.use("/api/students", studentRoutes);
@@ -635,6 +727,7 @@ app.use("/api/classes", classRoutes);
 app.use("/api/sections", sectionRoutes);
 app.use("/api/class-sections", classSectionRoutes);
 app.use("/api/teachers", teacherRoutes);
+app.use("/api/users", userRoutes);
 app.use("/api/subjects", subjectRoutes);
 app.use("/api/teacher-subject-assignments", teacherSubjectAssignmentRoutes);
 app.use("/api/exams", examRoutes);
@@ -709,7 +802,7 @@ app.get("/", (req, res) => {
   res.send("ERP Backend Running 🚀");
 });
 
-app.get("/test-db", async (req, res) => {
+app.get("/test-db", authenticate, isSuperAdmin, async (req, res) => {
   try {
     const result = await pool.query("SELECT NOW()");
     res.json(result.rows);

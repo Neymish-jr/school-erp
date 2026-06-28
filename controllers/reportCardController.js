@@ -1,6 +1,15 @@
 const pool = require("../db");
 const { successResponse, errorResponse } = require("../utils/response");
 
+const buildSchoolClause = (role, schoolId, params, tableAlias = "s") => {
+  if (role !== "super_admin" && schoolId != null) {
+    params.push(schoolId);
+    return ` AND ${tableAlias}.school_id = $${params.length}`;
+  }
+
+  return "";
+};
+
 const EXAM_ORDER = [
   "Unit Test 1",
   "Unit Test 2",
@@ -47,20 +56,25 @@ const getExamOrder = (examName) => {
 const getReportCard = async (req, res) => {
   try {
     const { studentId } = req.params;
+    const { school_id: schoolId, role } = req.user;
+
+    const studentParams = [studentId];
+    const studentSchoolClause = buildSchoolClause(role, schoolId, studentParams);
 
     const studentResult = await pool.query(
       `
       SELECT
-        id,
-        name,
-        student_class,
-        section,
-        is_active,
-        created_at
-      FROM students
-      WHERE id = $1
+        s.id,
+        s.name,
+        s.student_class,
+        s.section,
+        s.is_active,
+        s.created_at
+      FROM students s
+      WHERE s.id = $1
+      ${studentSchoolClause}
       `,
-      [studentId]
+      studentParams
     );
 
     if (studentResult.rowCount === 0) {
@@ -72,6 +86,9 @@ const getReportCard = async (req, res) => {
     }
 
     const student = studentResult.rows[0];
+
+    const resultParams = [studentId];
+    const resultsSchoolClause = buildSchoolClause(role, schoolId, resultParams);
 
     const resultRows = await pool.query(
       `
@@ -88,12 +105,15 @@ const getReportCard = async (req, res) => {
         subjects.subject_name,
         subjects.subject_code
       FROM student_results AS sr
+      JOIN students s
+        ON s.id = sr.student_id
       JOIN subjects
         ON subjects.id = sr.subject_id
       WHERE sr.student_id = $1
+      ${resultsSchoolClause}
       ORDER BY sr.created_at ASC
       `,
-      [studentId]
+      resultParams
     );
 
     const examGroups = new Map();
@@ -184,4 +204,5 @@ const getReportCard = async (req, res) => {
 
 module.exports = {
   getReportCard,
+  buildSchoolClause,
 };

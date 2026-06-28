@@ -1,7 +1,7 @@
 const financialYearService = require("../services/financialYearService");
 const { successResponse, errorResponse } = require("../utils/response");
+const { resolveSchoolIdForWrite } = require("../utils/tenantScope");
 
-const getSchoolId = (req) => req.user?.school_id || 1;
 const getUserId = (req) => req.user?.id;
 
 const handleServiceError = (res, err) => {
@@ -23,8 +23,13 @@ const handleServiceError = (res, err) => {
 
 const getFinancialYears = async (req, res) => {
   try {
+    const schoolId = resolveSchoolIdForWrite(req, res);
+    if (schoolId == null) {
+      return;
+    }
+
     const data = await financialYearService.listFinancialYears({
-      schoolId: getSchoolId(req),
+      schoolId,
       search: req.query.search,
       status: req.query.status,
     });
@@ -40,7 +45,12 @@ const getFinancialYears = async (req, res) => {
 
 const getActiveFinancialYear = async (req, res) => {
   try {
-    const data = await financialYearService.getActiveFinancialYear(getSchoolId(req));
+    const schoolId = resolveSchoolIdForWrite(req, res);
+    if (schoolId == null) {
+      return;
+    }
+
+    const data = await financialYearService.getActiveFinancialYear(schoolId);
 
     if (!data) {
       return errorResponse(res, {
@@ -61,9 +71,14 @@ const getActiveFinancialYear = async (req, res) => {
 
 const getFinancialYearById = async (req, res) => {
   try {
+    const schoolId = resolveSchoolIdForWrite(req, res);
+    if (schoolId == null) {
+      return;
+    }
+
     const data = await financialYearService.getFinancialYearById(
       req.params.id,
-      getSchoolId(req)
+      schoolId
     );
 
     return successResponse(res, {
@@ -77,8 +92,13 @@ const getFinancialYearById = async (req, res) => {
 
 const createFinancialYear = async (req, res) => {
   try {
+    const schoolId = resolveSchoolIdForWrite(req, res);
+    if (schoolId == null) {
+      return;
+    }
+
     const data = await financialYearService.createFinancialYear({
-      schoolId: getSchoolId(req),
+      schoolId,
       userId: getUserId(req),
       yearLabel: req.body.year_label,
       remarks: req.body.remarks,
@@ -96,9 +116,14 @@ const createFinancialYear = async (req, res) => {
 
 const updateFinancialYear = async (req, res) => {
   try {
+    const schoolId = resolveSchoolIdForWrite(req, res);
+    if (schoolId == null) {
+      return;
+    }
+
     const data = await financialYearService.updateFinancialYear({
       id: req.params.id,
-      schoolId: getSchoolId(req),
+      schoolId,
       remarks: req.body.remarks,
     });
 
@@ -113,9 +138,14 @@ const updateFinancialYear = async (req, res) => {
 
 const activateFinancialYear = async (req, res) => {
   try {
+    const schoolId = resolveSchoolIdForWrite(req, res);
+    if (schoolId == null) {
+      return;
+    }
+
     const data = await financialYearService.activateFinancialYear(
       req.params.id,
-      getSchoolId(req)
+      schoolId
     );
 
     return successResponse(res, {
@@ -129,9 +159,14 @@ const activateFinancialYear = async (req, res) => {
 
 const closeFinancialYear = async (req, res) => {
   try {
+    const schoolId = resolveSchoolIdForWrite(req, res);
+    if (schoolId == null) {
+      return;
+    }
+
     const data = await financialYearService.closeFinancialYear(
       req.params.id,
-      getSchoolId(req)
+      schoolId
     );
 
     return successResponse(res, {
@@ -145,9 +180,14 @@ const closeFinancialYear = async (req, res) => {
 
 const deleteFinancialYear = async (req, res) => {
   try {
+    const schoolId = resolveSchoolIdForWrite(req, res);
+    if (schoolId == null) {
+      return;
+    }
+
     const data = await financialYearService.deleteFinancialYear(
       req.params.id,
-      getSchoolId(req)
+      schoolId
     );
 
     return successResponse(res, {

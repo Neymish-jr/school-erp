@@ -1,29 +1,44 @@
 const express = require("express");
 const router = express.Router();
+const upload = require("../middleware/upload");
+const asyncHandler = require("../middleware/asyncHandler");
 const { validateRequest } = require("../middleware/validation");
 const {
   authenticate,
-  isAdminLike
+  isAdminLike,
+  isTeacherOrAdminLike,
 } = require("../middleware/auth");
-
-const quotationSchema = require("../validators/quotationValidator");
 const {
-  createQuotation,
+  quotationCreateSchema,
+} = require("../validators/quotationValidator");
+const {
+  getQuotationConfig,
   getQuotations,
-  selectQuotation
+  getQuotationComparison,
+  getQuotationById,
+  createQuotation,
+  selectQuotation,
 } = require("../controllers/quotationController");
 
-router.use(
-  authenticate,
-  isAdminLike
-);
+router.get("/config", authenticate, asyncHandler(getQuotationConfig));
+router.get("/", authenticate, asyncHandler(getQuotations));
 
 router.post(
   "/",
-  validateRequest(quotationSchema),
-  createQuotation
+  authenticate,
+  isTeacherOrAdminLike,
+  upload.single("attachment"),
+  validateRequest(quotationCreateSchema),
+  asyncHandler(createQuotation)
 );
 
-router.get("/", getQuotations);
-router.put("/:id/select", selectQuotation);
+router.get(
+  "/expense-request/:expenseRequestId/comparison",
+  authenticate,
+  asyncHandler(getQuotationComparison)
+);
+
+router.get("/:id", authenticate, asyncHandler(getQuotationById));
+router.put("/:id/select", authenticate, isAdminLike, asyncHandler(selectQuotation));
+
 module.exports = router;

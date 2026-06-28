@@ -10,6 +10,7 @@ const {
 
 const {
   getAdministrativeCharges,
+  getAdministrativeChargeDetails,
   getAdministrativeChargeById,
   createAdministrativeCharge,
   updateAdministrativeCharge,
@@ -17,6 +18,7 @@ const {
 } = require("../controllers/administrativeChargeController");
 
 router.get("/", authenticate, asyncHandler(getAdministrativeCharges));
+router.get("/:id/details", authenticate, asyncHandler(getAdministrativeChargeDetails));
 router.get("/:id", authenticate, asyncHandler(getAdministrativeChargeById));
 router.post(
   "/",

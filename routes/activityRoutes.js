@@ -1,43 +1,71 @@
 const express = require("express");
 const router = express.Router();
 const upload = require("../middleware/upload");
+const asyncHandler = require("../middleware/asyncHandler");
 const { validateRequest } = require("../middleware/validation");
 const {
   authenticate,
-  isAdminLike
+  isAdminLike,
+  isTeacherOrAdminLike,
 } = require("../middleware/auth");
 const {
   activitySchema,
-  activityStatusSchema
+  activityStatusSchema,
+  activityRejectSchema,
 } = require("../validators/activityValidator");
-
 const {
   getActivities,
+  getActivityDashboard,
+  getActivityById,
+  getActivityTimeline,
   createActivity,
+  submitActivity,
+  approveActivity,
+  rejectActivity,
+  completeActivity,
   updateActivityStatus,
-  uploadActivityFile
+  uploadActivityFile,
 } = require("../controllers/activityController");
 
-router.use(
-  authenticate,
-  isAdminLike
-);
-
-router.get("/", getActivities);
-
+router.get("/dashboard", authenticate, asyncHandler(getActivityDashboard));
+router.get("/", authenticate, asyncHandler(getActivities));
 
 router.post(
   "/",
+  authenticate,
+  isTeacherOrAdminLike,
   validateRequest(activitySchema),
-  createActivity
+  asyncHandler(createActivity)
 );
 
+router.get("/:id/timeline", authenticate, asyncHandler(getActivityTimeline));
+router.get("/:id", authenticate, asyncHandler(getActivityById));
+
+router.put("/:id/submit", authenticate, isTeacherOrAdminLike, asyncHandler(submitActivity));
+router.put("/:id/approve", authenticate, isAdminLike, asyncHandler(approveActivity));
+router.put(
+  "/:id/reject",
+  authenticate,
+  isAdminLike,
+  validateRequest(activityRejectSchema),
+  asyncHandler(rejectActivity)
+);
+router.put("/:id/complete", authenticate, isTeacherOrAdminLike, asyncHandler(completeActivity));
 
 router.put(
   "/:id/status",
+  authenticate,
+  isAdminLike,
   validateRequest(activityStatusSchema, { useTextResponse: true }),
-  updateActivityStatus
+  asyncHandler(updateActivityStatus)
 );
-router.post("/:id/upload", upload.single("file"), uploadActivityFile);
+
+router.post(
+  "/:id/upload",
+  authenticate,
+  isTeacherOrAdminLike,
+  upload.single("file"),
+  asyncHandler(uploadActivityFile)
+);
 
 module.exports = router;

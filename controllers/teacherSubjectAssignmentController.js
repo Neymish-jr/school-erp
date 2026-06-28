@@ -151,21 +151,7 @@ const getAssignmentsByTeacherId = async (req, res) => {
 
 const getAssignmentsForTeacher = async (req, res) => {
   try {
-    let teacherId = req.user.teacher_id;
-
-    if (!teacherId && req.user.role === "teacher") {
-      const teacherLookup = await pool.query(
-        `
-        SELECT id
-        FROM teachers
-        WHERE teacher_name ILIKE $1
-        LIMIT 1
-        `,
-        [req.user.name || ""]
-      );
-
-      teacherId = teacherLookup.rows[0]?.id || null;
-    }
+    const teacherId = req.user.teacher_id ?? null;
 
     if (!teacherId) {
       return errorResponse(res, {
@@ -282,18 +268,31 @@ const relieveAssignment = async (req, res) => {
   try {
     const { id } = req.params;
     const { assignment_end_date } = req.body;
+    const { school_id: schoolId, role } = req.user;
 
-    const result = await pool.query(
-      `
-      UPDATE teacher_subject_assignments
+    const params = [assignment_end_date, id];
+    const schoolCondition = buildSchoolClause(role, schoolId, params, "t");
+
+    let query = `
+      UPDATE teacher_subject_assignments tsa
       SET is_active = FALSE,
           assignment_end_date = $1,
           updated_at = NOW()
-      WHERE id = $2 AND is_active = TRUE
-      RETURNING id, teacher_id, class_section_id, subject_id, assignment_start_date, assignment_end_date, is_active, created_at, updated_at
-      `,
-      [assignment_end_date, id]
-    );
+      FROM teachers t
+      WHERE tsa.teacher_id = t.id
+        AND tsa.id = $2
+        AND tsa.is_active = TRUE
+    `;
+
+    if (schoolCondition) {
+      query += ` AND ${schoolCondition}`;
+    }
+
+    query += `
+      RETURNING tsa.id, tsa.teacher_id, tsa.class_section_id, tsa.subject_id, tsa.assignment_start_date, tsa.assignment_end_date, tsa.is_active, tsa.created_at, tsa.updated_at
+    `;
+
+    const result = await pool.query(query, params);
 
     if (result.rowCount === 0) {
       return errorResponse(res, {

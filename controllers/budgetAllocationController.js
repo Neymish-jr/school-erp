@@ -1,7 +1,7 @@
 const budgetAllocationService = require("../services/budgetAllocationService");
 const { successResponse, errorResponse } = require("../utils/response");
+const { resolveSchoolIdForWrite } = require("../utils/tenantScope");
 
-const getSchoolId = (req) => req.user?.school_id || 1;
 const getUserId = (req) => req.user?.id;
 
 const handleServiceError = (res, err) => {
@@ -23,6 +23,11 @@ const handleServiceError = (res, err) => {
 
 const getBudgetAllocations = async (req, res) => {
   try {
+    const schoolId = resolveSchoolIdForWrite(req, res);
+    if (schoolId == null) {
+      return;
+    }
+
     const isActive =
       req.query.is_active === "true"
         ? true
@@ -31,7 +36,7 @@ const getBudgetAllocations = async (req, res) => {
           : undefined;
 
     const data = await budgetAllocationService.listBudgetAllocations({
-      schoolId: getSchoolId(req),
+      schoolId,
       financialYearId: req.query.financial_year_id
         ? Number(req.query.financial_year_id)
         : undefined,
@@ -56,8 +61,13 @@ const getBudgetAllocations = async (req, res) => {
 
 const getBudgetAllocationSummary = async (req, res) => {
   try {
+    const schoolId = resolveSchoolIdForWrite(req, res);
+    if (schoolId == null) {
+      return;
+    }
+
     const data = await budgetAllocationService.getBudgetAllocationSummary(
-      getSchoolId(req),
+      schoolId,
       req.query.financial_year_id ? Number(req.query.financial_year_id) : undefined
     );
 
@@ -72,9 +82,14 @@ const getBudgetAllocationSummary = async (req, res) => {
 
 const getBudgetAllocationById = async (req, res) => {
   try {
+    const schoolId = resolveSchoolIdForWrite(req, res);
+    if (schoolId == null) {
+      return;
+    }
+
     const data = await budgetAllocationService.getBudgetAllocationById(
       req.params.id,
-      getSchoolId(req)
+      schoolId
     );
 
     return successResponse(res, {
@@ -88,8 +103,13 @@ const getBudgetAllocationById = async (req, res) => {
 
 const createBudgetAllocation = async (req, res) => {
   try {
+    const schoolId = resolveSchoolIdForWrite(req, res);
+    if (schoolId == null) {
+      return;
+    }
+
     const data = await budgetAllocationService.createBudgetAllocation({
-      schoolId: getSchoolId(req),
+      schoolId,
       userId: getUserId(req),
       financialYearId: req.body.financial_year_id,
       budgetSubHeadId: req.body.budget_sub_head_id,
@@ -110,9 +130,14 @@ const createBudgetAllocation = async (req, res) => {
 
 const updateBudgetAllocation = async (req, res) => {
   try {
+    const schoolId = resolveSchoolIdForWrite(req, res);
+    if (schoolId == null) {
+      return;
+    }
+
     const data = await budgetAllocationService.updateBudgetAllocation({
       id: req.params.id,
-      schoolId: getSchoolId(req),
+      schoolId,
       allocatedAmount: req.body.allocated_amount,
       responsibleTeacherId: req.body.responsible_teacher_id ?? null,
       remarks: req.body.remarks,
@@ -129,9 +154,14 @@ const updateBudgetAllocation = async (req, res) => {
 
 const updateBudgetAllocationStatus = async (req, res) => {
   try {
+    const schoolId = resolveSchoolIdForWrite(req, res);
+    if (schoolId == null) {
+      return;
+    }
+
     const data = await budgetAllocationService.updateBudgetAllocationStatus(
       req.params.id,
-      getSchoolId(req),
+      schoolId,
       req.body.is_active
     );
 

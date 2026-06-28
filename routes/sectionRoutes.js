@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../middleware/asyncHandler");
-const { authenticate } = require("../middleware/auth");
+const { authenticate, isAdminLike } = require("../middleware/auth");
 const { validateRequest } = require("../middleware/validation");
 const sectionSchema = require("../validators/sectionValidator");
 
@@ -35,7 +35,7 @@ const {
  *         description: Section created successfully
  */
 
-router.post("/", authenticate, validateRequest(sectionSchema), asyncHandler(createSection));
+router.post("/", authenticate, isAdminLike, validateRequest(sectionSchema), asyncHandler(createSection));
 
 /**
  * @swagger

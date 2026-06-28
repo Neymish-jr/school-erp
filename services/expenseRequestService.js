@@ -5,11 +5,16 @@ const {
   COMMITTED_STATUSES,
 } = require("../constants/expenseRequestStatus");
 const { FINANCIAL_YEAR_STATUS } = require("../constants/financialYearStatus");
+const { assertActivityLinkForExpenseRequest } = require("./activityService");
+const quotationService = require("./quotationService");
 
 const REQUEST_SELECT = `
   er.id,
   er.school_id,
   er.budget_allocation_id,
+  er.activity_id,
+  er.item_name,
+  er.quantity,
   er.requested_amount,
   er.purpose,
   er.vendor_name,
@@ -24,6 +29,7 @@ const REQUEST_SELECT = `
   er.paid_at,
   er.payment_voucher_no,
   er.payment_transaction_id,
+  er.selected_quotation_id,
   er.created_at,
   er.updated_at,
   ba.financial_year_id,
@@ -35,6 +41,8 @@ const REQUEST_SELECT = `
   bh.head_code AS budget_head_code,
   bsh.sub_head_name,
   bsh.sub_head_code,
+  act.activity_name,
+  act.status AS activity_status,
   creator.name AS created_by_name,
   submitter.name AS submitted_by_name,
   reviewer.name AS reviewed_by_name
@@ -47,6 +55,7 @@ const REQUEST_FROM = `
   INNER JOIN budget_sub_heads bsh ON bsh.id = ba.budget_sub_head_id
   INNER JOIN budget_heads bh ON bh.id = bsh.budget_head_id
   INNER JOIN users creator ON creator.id = er.created_by_user_id
+  LEFT JOIN activities act ON act.id = er.activity_id AND act.school_id = er.school_id
   LEFT JOIN users submitter ON submitter.id = er.submitted_by_user_id
   LEFT JOIN users reviewer ON reviewer.id = er.reviewed_by_user_id
 `;
@@ -201,11 +210,13 @@ const getExpenseRequestById = async (id, schoolId = null, userId = null, role = 
 
   const row = result.rows[0];
   const balance = await getAllocationBalance(row.budget_allocation_id, row.school_id);
+  const quotationMeta = await quotationService.getQuotationMetaForExpenseRequest(row);
 
   return {
     ...row,
     committed_amount: balance.committed_amount,
     available_balance: balance.available_balance,
+    ...quotationMeta,
   };
 };
 
@@ -217,6 +228,7 @@ const listExpenseRequests = async ({
   budgetAllocationId,
   financialYearId,
   submittedByUserId,
+  activityId,
 }) => {
   const params = [];
   let query = `
@@ -253,6 +265,11 @@ const listExpenseRequests = async ({
   if (submittedByUserId) {
     params.push(submittedByUserId);
     query += ` AND er.submitted_by_user_id = $${params.length}`;
+  }
+
+  if (activityId) {
+    params.push(activityId);
+    query += ` AND er.activity_id = $${params.length}`;
   }
 
   query += ` ORDER BY er.created_at DESC, er.id DESC`;
@@ -306,6 +323,9 @@ const createExpenseRequest = async ({
   purpose,
   vendorName = "",
   remarks = "",
+  activityId = null,
+  itemName = null,
+  quantity = null,
 }) => {
   const client = await pool.connect();
 
@@ -326,12 +346,21 @@ const createExpenseRequest = async ({
     }
 
     await assertAllocationEligible(budgetAllocationId, schoolId, client);
+    await assertActivityLinkForExpenseRequest({
+      activityId,
+      schoolId,
+      budgetAllocationId,
+      client,
+    });
 
     const result = await client.query(
       `
       INSERT INTO expense_requests (
         school_id,
         budget_allocation_id,
+        activity_id,
+        item_name,
+        quantity,
         requested_amount,
         purpose,
         vendor_name,
@@ -339,12 +368,15 @@ const createExpenseRequest = async ({
         status,
         created_by_user_id
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
       RETURNING id
       `,
       [
         schoolId,
         budgetAllocationId,
+        activityId,
+        itemName,
+        quantity,
         requestedAmount,
         purpose,
         vendorName || null,
@@ -373,6 +405,9 @@ const updateExpenseRequest = async ({
   purpose,
   vendorName = "",
   remarks = "",
+  activityId,
+  itemName,
+  quantity,
 }) => {
   const existing = await getExpenseRequestById(id, schoolId, userId, role);
 
@@ -384,26 +419,45 @@ const updateExpenseRequest = async ({
     throw new AppError(403, "You can only edit your own draft expense requests");
   }
 
+  const resolvedActivityId =
+    activityId !== undefined ? activityId : existing.activity_id ?? null;
+  const resolvedItemName =
+    itemName !== undefined ? itemName : existing.item_name ?? null;
+  const resolvedQuantity =
+    quantity !== undefined ? quantity : existing.quantity ?? null;
+
   const client = await pool.connect();
 
   try {
     await client.query("BEGIN");
     await assertAllocationEligible(existing.budget_allocation_id, schoolId, client);
+    await assertActivityLinkForExpenseRequest({
+      activityId: resolvedActivityId,
+      schoolId,
+      budgetAllocationId: existing.budget_allocation_id,
+      client,
+    });
 
     await client.query(
       `
       UPDATE expense_requests
       SET
-        requested_amount = $1,
-        purpose = $2,
-        vendor_name = $3,
-        remarks = $4,
+        activity_id = $1,
+        item_name = $2,
+        quantity = $3,
+        requested_amount = $4,
+        purpose = $5,
+        vendor_name = $6,
+        remarks = $7,
         updated_at = NOW()
-      WHERE id = $5
-        AND school_id = $6
-        AND status = $7
+      WHERE id = $8
+        AND school_id = $9
+        AND status = $10
       `,
       [
+        resolvedActivityId,
+        resolvedItemName,
+        resolvedQuantity,
         requestedAmount,
         purpose,
         vendorName || null,
@@ -485,6 +539,8 @@ const submitExpenseRequest = async (id, schoolId, userId, role) => {
       id
     );
 
+    await quotationService.assertQuotationRequirementsForSubmit(id, schoolId);
+
     await client.query(
       `
       UPDATE expense_requests
@@ -543,6 +599,8 @@ const approveExpenseRequest = async (id, schoolId, adminUserId) => {
       client,
       id
     );
+
+    await quotationService.assertQuotationRequirementsForApprove(id, schoolId);
 
     await client.query(
       `
@@ -618,7 +676,15 @@ const markExpenseRequestPaid = async (
   id,
   schoolId,
   adminUserId,
-  { paymentVoucherNo, paymentTransactionId, paidAt = null }
+  {
+    paymentVoucherNo,
+    paymentTransactionId,
+    paidAt = null,
+    createStockEntry = false,
+    stockCategory = null,
+    stockUnit = null,
+    purchaseRate = null,
+  }
 ) => {
   const existing = await getExpenseRequestById(id, schoolId);
 
@@ -662,6 +728,20 @@ const markExpenseRequestPaid = async (
 
     const cashbookEntryService = require("./cashbookEntryService");
     await cashbookEntryService.createPaymentFromExpenseRequest(client, id, adminUserId);
+
+    if (createStockEntry) {
+      const stockRegisterService = require("./stockRegisterService");
+      await stockRegisterService.createStockEntryFromExpenseRequest(
+        client,
+        id,
+        adminUserId,
+        {
+          category: stockCategory,
+          unit: stockUnit,
+          purchaseRate,
+        }
+      );
+    }
 
     await client.query("COMMIT");
     return getExpenseRequestById(id, schoolId);

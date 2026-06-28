@@ -2,6 +2,33 @@ const pool = require("../db");
 const studentResultsSchema = require("../validators/studentResultsValidator");
 const { successResponse, errorResponse } = require("../utils/response");
 
+const buildSchoolClause = (role, schoolId, params, tableAlias = "students") => {
+  if (role !== "super_admin" && schoolId != null) {
+    params.push(schoolId);
+    return ` AND ${tableAlias}.school_id = $${params.length}`;
+  }
+
+  return "";
+};
+
+const verifyStudentInSchool = async (studentId, role, schoolId) => {
+  const params = [studentId];
+  const schoolClause = buildSchoolClause(role, schoolId, params, "students");
+
+  const result = await pool.query(
+    `
+    SELECT id
+    FROM students
+    WHERE id = $1
+      AND is_active = true
+    ${schoolClause}
+    `,
+    params
+  );
+
+  return result.rowCount > 0;
+};
+
 const calculatePercentage = (marksObtained, maxMarks) => {
   const obtained = Number(marksObtained);
   const total = Number(maxMarks);
@@ -29,6 +56,7 @@ const createStudentResult = async (req, res) => {
   }
 
   try {
+    const { school_id: schoolId, role } = req.user;
     const {
       student_id,
       subject_id,
@@ -36,6 +64,15 @@ const createStudentResult = async (req, res) => {
       marks_obtained,
       max_marks,
     } = req.body;
+
+    const studentAllowed = await verifyStudentInSchool(student_id, role, schoolId);
+    if (!studentAllowed) {
+      return errorResponse(res, {
+        message: "Student not found in your school",
+        error: "Student not found in your school",
+        status: 404,
+      });
+    }
 
     if (Number(marks_obtained) > Number(max_marks)) {
       return errorResponse(res, {
@@ -45,15 +82,20 @@ const createStudentResult = async (req, res) => {
       });
     }
 
+    const duplicateParams = [student_id, subject_id, exam_name];
+    const duplicateSchoolClause = buildSchoolClause(role, schoolId, duplicateParams, "students");
+
     const duplicate = await pool.query(
       `
-      SELECT id
-      FROM student_results
-      WHERE student_id = $1
-        AND subject_id = $2
-        AND LOWER(TRIM(exam_name)) = LOWER(TRIM($3))
+      SELECT sr.id
+      FROM student_results sr
+      JOIN students ON students.id = sr.student_id
+      WHERE sr.student_id = $1
+        AND sr.subject_id = $2
+        AND LOWER(TRIM(sr.exam_name)) = LOWER(TRIM($3))
+      ${duplicateSchoolClause}
       `,
-      [student_id, subject_id, exam_name]
+      duplicateParams
     );
 
     if (duplicate.rowCount > 0) {
@@ -118,6 +160,10 @@ const createStudentResult = async (req, res) => {
 
 const getStudentResults = async (req, res) => {
   try {
+    const { school_id: schoolId, role } = req.user;
+    const params = [];
+    const schoolClause = buildSchoolClause(role, schoolId, params, "students");
+
     const result = await pool.query(
       `
       SELECT
@@ -140,8 +186,11 @@ const getStudentResults = async (req, res) => {
         ON students.id = sr.student_id
       JOIN subjects
         ON subjects.id = sr.subject_id
+      WHERE 1 = 1
+      ${schoolClause}
       ORDER BY sr.created_at DESC
-      `
+      `,
+      params
     );
 
     return successResponse(res, {
@@ -161,4 +210,6 @@ const getStudentResults = async (req, res) => {
 module.exports = {
   createStudentResult,
   getStudentResults,
+  buildSchoolClause,
+  verifyStudentInSchool,
 };

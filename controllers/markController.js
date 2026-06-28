@@ -2,6 +2,33 @@ const pool = require("../db");
 const markSchema = require("../validators/markValidator");
 const { successResponse, errorResponse } = require("../utils/response");
 
+const buildSchoolClause = (role, schoolId, params, tableAlias = "students") => {
+  if (role !== "super_admin" && schoolId != null) {
+    params.push(schoolId);
+    return ` AND ${tableAlias}.school_id = $${params.length}`;
+  }
+
+  return "";
+};
+
+const verifyStudentInSchool = async (studentId, role, schoolId) => {
+  const params = [studentId];
+  const schoolClause = buildSchoolClause(role, schoolId, params, "students");
+
+  const result = await pool.query(
+    `
+    SELECT id
+    FROM students
+    WHERE id = $1
+      AND is_active = true
+    ${schoolClause}
+    `,
+    params
+  );
+
+  return result.rowCount > 0;
+};
+
 // ADD MARKS
 const createMark = async (req, res) => {
 const { error } = markSchema.validate(req.body);
@@ -10,7 +37,7 @@ if (error) {
   return errorResponse(res, { message: error.details[0].message, error: error.details[0].message, status: 400 });
 }
   try {
-
+    const { school_id: schoolId, role } = req.user;
     const {
       student_id,
       subject_id,
@@ -18,6 +45,15 @@ if (error) {
       marks_obtained,
       total_marks,
     } = req.body;
+
+    const studentAllowed = await verifyStudentInSchool(student_id, role, schoolId);
+    if (!studentAllowed) {
+      return errorResponse(res, {
+        message: "Student not found in your school",
+        error: "Student not found in your school",
+        status: 404,
+      });
+    }
     
     const result = await pool.query(
       `
@@ -63,6 +99,9 @@ if (error) {
 const getMarks = async (req, res) => {
 
   try {
+    const { school_id: schoolId, role } = req.user;
+    const params = [];
+    const schoolClause = buildSchoolClause(role, schoolId, params, "students");
 
     const result = await pool.query(
       `
@@ -82,8 +121,11 @@ const getMarks = async (req, res) => {
       JOIN exams
       ON marks.exam_id = exams.id
 
+      WHERE 1 = 1
+      ${schoolClause}
       ORDER BY marks.id ASC
-      `
+      `,
+      params
     );
 
     return successResponse(res, { data: result.rows, message: "Marks fetched successfully" });
@@ -99,5 +141,7 @@ const getMarks = async (req, res) => {
 
 module.exports = {
   createMark,
-  getMarks
+  getMarks,
+  buildSchoolClause,
+  verifyStudentInSchool,
 };

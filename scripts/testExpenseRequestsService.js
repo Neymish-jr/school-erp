@@ -59,6 +59,16 @@ const ensureSchema = async () => {
     await pool.query(fs.readFileSync(migration, "utf8"));
   }
 
+  const bridgeMigration = path.join(
+    __dirname,
+    "..",
+    "migrations",
+    "017_finance_activity_expense_request_bridge.sql"
+  );
+  if (fs.existsSync(bridgeMigration)) {
+    await pool.query(fs.readFileSync(bridgeMigration, "utf8"));
+  }
+
   const cashbookMigration = path.join(__dirname, "..", "migrations", "014_create_cashbook_entries.sql");
   if (fs.existsSync(cashbookMigration)) {
     await pool.query(fs.readFileSync(cashbookMigration, "utf8"));

@@ -19,7 +19,9 @@ const teacherSchema = Joi.object({
 
   gender: Joi.string()
     .valid("Male", "Female", "Other")
-    .required()
+    .required(),
+
+  employee_code: Joi.string().trim().max(50).allow(null, "").optional(),
 
 });
 
@@ -33,6 +35,7 @@ const teacherUpdateSchema = Joi.object({
   status: Joi.string().valid(...TEACHER_STATUSES),
   designation: Joi.string().trim(),
   age: Joi.number().min(18).max(65),
+  employee_code: Joi.string().trim().max(50).allow(null, ""),
 }).min(1);
 
 module.exports = teacherSchema;

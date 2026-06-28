@@ -1,8 +1,6 @@
 const cashbookEntryService = require("../services/cashbookEntryService");
 const { successResponse, errorResponse } = require("../utils/response");
-
-const getSchoolId = (req) => req.user?.school_id || 1;
-const getRole = (req) => req.user?.role;
+const { resolveSchoolScope } = require("../utils/tenantScope");
 
 const handleServiceError = (res, err) => {
   if (err.statusCode) {
@@ -21,27 +19,39 @@ const handleServiceError = (res, err) => {
   });
 };
 
-const buildFilters = (req) => ({
-  schoolId: getSchoolId(req),
-  role: getRole(req),
-  financialYearId: req.query.financial_year_id ? Number(req.query.financial_year_id) : undefined,
-  budgetHeadId: req.query.budget_head_id ? Number(req.query.budget_head_id) : undefined,
-  budgetSubHeadId: req.query.budget_sub_head_id ? Number(req.query.budget_sub_head_id) : undefined,
-  budgetAllocationId: req.query.budget_allocation_id
-    ? Number(req.query.budget_allocation_id)
-    : undefined,
-  dateFrom: req.query.date_from || undefined,
-  dateTo: req.query.date_to || undefined,
-  voucherNo: req.query.voucher_no || undefined,
-  vendorName: req.query.vendor_name || undefined,
-  search: req.query.search || undefined,
-  page: req.query.page,
-  limit: req.query.limit,
-});
+const buildFilters = (req, res) => {
+  const scope = resolveSchoolScope(req, res);
+  if (!scope) {
+    return null;
+  }
+
+  return {
+    schoolId: scope.schoolId,
+    role: scope.role,
+    financialYearId: req.query.financial_year_id ? Number(req.query.financial_year_id) : undefined,
+    budgetHeadId: req.query.budget_head_id ? Number(req.query.budget_head_id) : undefined,
+    budgetSubHeadId: req.query.budget_sub_head_id ? Number(req.query.budget_sub_head_id) : undefined,
+    budgetAllocationId: req.query.budget_allocation_id
+      ? Number(req.query.budget_allocation_id)
+      : undefined,
+    dateFrom: req.query.date_from || undefined,
+    dateTo: req.query.date_to || undefined,
+    voucherNo: req.query.voucher_no || undefined,
+    vendorName: req.query.vendor_name || undefined,
+    search: req.query.search || undefined,
+    page: req.query.page,
+    limit: req.query.limit,
+  };
+};
 
 const getCashbookEntries = async (req, res) => {
   try {
-    const result = await cashbookEntryService.listCashbookEntries(buildFilters(req));
+    const filters = buildFilters(req, res);
+    if (!filters) {
+      return;
+    }
+
+    const result = await cashbookEntryService.listCashbookEntries(filters);
 
     return res.status(200).json({
       success: true,
@@ -57,10 +67,15 @@ const getCashbookEntries = async (req, res) => {
 
 const getCashbookEntry = async (req, res) => {
   try {
+    const scope = resolveSchoolScope(req, res);
+    if (!scope) {
+      return;
+    }
+
     const data = await cashbookEntryService.getCashbookEntryById(
       Number(req.params.id),
-      getSchoolId(req),
-      getRole(req)
+      scope.schoolId,
+      scope.role
     );
 
     return successResponse(res, {
@@ -74,7 +89,12 @@ const getCashbookEntry = async (req, res) => {
 
 const getCashbookSummary = async (req, res) => {
   try {
-    const data = await cashbookEntryService.getCashbookSummary(buildFilters(req));
+    const filters = buildFilters(req, res);
+    if (!filters) {
+      return;
+    }
+
+    const data = await cashbookEntryService.getCashbookSummary(filters);
 
     return successResponse(res, {
       message: "Cashbook summary fetched successfully",
@@ -87,8 +107,13 @@ const getCashbookSummary = async (req, res) => {
 
 const exportCashbook = async (req, res) => {
   try {
+    const filters = buildFilters(req, res);
+    if (!filters) {
+      return;
+    }
+
     const { buffer, filename } = await cashbookEntryService.exportCashbookEntriesXlsx(
-      buildFilters(req)
+      filters
     );
 
     res.setHeader(

@@ -1,7 +1,11 @@
 const pool = require("../db");
 const { successResponse, errorResponse } = require("../utils/response");
-
-const getSchoolId = (req) => req.user?.school_id || 1;
+const {
+  resolveSchoolIdForWrite,
+  resolveSchoolScope,
+  buildSchoolClause,
+} = require("../utils/tenantScope");
+const administrativeChargeService = require("../services/administrativeChargeService");
 
 const normalizeChargePayload = (payload = {}) => ({
   charge_name: String(payload.charge_name || "").trim(),
@@ -10,42 +14,24 @@ const normalizeChargePayload = (payload = {}) => ({
 
 const getAdministrativeCharges = async (req, res) => {
   try {
-    const schoolId = getSchoolId(req);
-    const search = String(req.query.search || "").trim();
-    const isActive = req.query.is_active;
-    const params = [schoolId, `%${search}%`];
-
-    let query = `
-      SELECT
-        id,
-        charge_name,
-        description,
-        is_active,
-        school_id,
-        created_at,
-        updated_at
-      FROM administrative_charges
-      WHERE school_id = $1
-        AND (
-          charge_name ILIKE $2
-          OR COALESCE(description, '') ILIKE $2
-        )
-    `;
-
-    if (isActive === "true" || isActive === "false") {
-      params.push(isActive === "true");
-      query += ` AND is_active = $${params.length}`;
+    const scope = resolveSchoolScope(req, res);
+    if (!scope) {
+      return;
     }
 
-    query += `
-      ORDER BY is_active DESC, charge_name ASC
-    `;
+    const search = String(req.query.search || "").trim();
+    const isActive = req.query.is_active;
+    const isActiveFilter =
+      isActive === "true" ? true : isActive === "false" ? false : undefined;
 
-    const result = await pool.query(query, params);
+    const data = await administrativeChargeService.listAdministrativeCharges(scope, {
+      search,
+      isActive: isActiveFilter,
+    });
 
     return successResponse(res, {
       message: "Administrative charges fetched successfully",
-      data: result.rows,
+      data,
     });
   } catch (err) {
     console.error(err);
@@ -57,8 +43,61 @@ const getAdministrativeCharges = async (req, res) => {
   }
 };
 
+const getAdministrativeChargeDetails = async (req, res) => {
+  try {
+    const scope = resolveSchoolScope(req, res);
+    if (!scope) {
+      return;
+    }
+
+    const chargeId = Number(req.params.id);
+    if (!Number.isInteger(chargeId) || chargeId <= 0) {
+      return errorResponse(res, {
+        message: "Invalid charge id",
+        error: "Validation Error",
+        status: 400,
+      });
+    }
+
+    const details = await administrativeChargeService.getChargeDetails(chargeId, scope);
+
+    if (!details) {
+      return errorResponse(res, {
+        message: "Administrative charge not found",
+        error: "Not found",
+        status: 404,
+      });
+    }
+
+    return successResponse(res, {
+      message: "Administrative charge details fetched successfully",
+      data: details,
+    });
+  } catch (err) {
+    console.error(err);
+    return errorResponse(res, {
+      message: "Error fetching administrative charge details",
+      error: err.message,
+      status: 500,
+    });
+  }
+};
+
 const getAdministrativeChargeById = async (req, res) => {
   try {
+    const scope = resolveSchoolScope(req, res);
+    if (!scope) {
+      return;
+    }
+
+    const params = [req.params.id];
+    const schoolClause = buildSchoolClause(
+      scope.role,
+      scope.schoolId,
+      params,
+      "administrative_charges"
+    );
+
     const result = await pool.query(
       `
       SELECT
@@ -71,9 +110,9 @@ const getAdministrativeChargeById = async (req, res) => {
         updated_at
       FROM administrative_charges
       WHERE id = $1
-        AND school_id = $2
+      ${schoolClause}
       `,
-      [req.params.id, getSchoolId(req)]
+      params
     );
 
     if (result.rowCount === 0) {
@@ -100,7 +139,11 @@ const getAdministrativeChargeById = async (req, res) => {
 
 const createAdministrativeCharge = async (req, res) => {
   try {
-    const schoolId = getSchoolId(req);
+    const schoolId = resolveSchoolIdForWrite(req, res);
+    if (schoolId == null) {
+      return;
+    }
+
     const payload = normalizeChargePayload(req.body);
 
     const result = await pool.query(
@@ -145,6 +188,11 @@ const createAdministrativeCharge = async (req, res) => {
 
 const updateAdministrativeCharge = async (req, res) => {
   try {
+    const schoolId = resolveSchoolIdForWrite(req, res);
+    if (schoolId == null) {
+      return;
+    }
+
     const payload = normalizeChargePayload(req.body);
 
     const result = await pool.query(
@@ -162,7 +210,7 @@ const updateAdministrativeCharge = async (req, res) => {
         payload.charge_name,
         payload.description,
         req.params.id,
-        getSchoolId(req),
+        schoolId,
       ]
     );
 
@@ -198,6 +246,11 @@ const updateAdministrativeCharge = async (req, res) => {
 
 const updateAdministrativeChargeStatus = async (req, res) => {
   try {
+    const schoolId = resolveSchoolIdForWrite(req, res);
+    if (schoolId == null) {
+      return;
+    }
+
     const result = await pool.query(
       `
       UPDATE administrative_charges
@@ -211,7 +264,7 @@ const updateAdministrativeChargeStatus = async (req, res) => {
       [
         Boolean(req.body.is_active),
         req.params.id,
-        getSchoolId(req),
+        schoolId,
       ]
     );
 
@@ -241,6 +294,7 @@ const updateAdministrativeChargeStatus = async (req, res) => {
 
 module.exports = {
   getAdministrativeCharges,
+  getAdministrativeChargeDetails,
   getAdministrativeChargeById,
   createAdministrativeCharge,
   updateAdministrativeCharge,

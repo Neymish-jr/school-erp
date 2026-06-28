@@ -2,10 +2,21 @@ const pool = require("../db");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { successResponse, errorResponse } = require("../utils/response");
+const { buildJwtPayload } = require("../utils/teacherIdentity");
 
 const registerUser = async (req, res) => {
   try {
-    const { name, email, password, role } = req.body;
+    const { name, email, password, role, school_id: bodySchoolId } = req.body;
+
+    const schoolId = bodySchoolId != null ? Number(bodySchoolId) : req.user?.school_id;
+
+    if (!Number.isInteger(schoolId) || schoolId <= 0) {
+      return errorResponse(res, {
+        message: "Valid school_id is required",
+        error: "Valid school_id is required",
+        status: 400,
+      });
+    }
 
     const existingUser = await pool.query(
       "SELECT * FROM users WHERE email = $1",
@@ -20,12 +31,21 @@ const registerUser = async (req, res) => {
 
     const result = await pool.query(
       "INSERT INTO users (name, email, password, role, school_id) VALUES ($1, $2, $3, $4, $5) RETURNING *",
-      [name, email, hashedPassword, role, 1]
+      [name, email, hashedPassword, role, schoolId]
     );
 
     return successResponse(res, { data: result.rows[0] });
   } catch (err) {
     console.error(err);
+
+    if (err.code === "23503") {
+      return errorResponse(res, {
+        message: "Invalid school ID",
+        error: "Invalid school ID",
+        status: 400,
+      });
+    }
+
     return errorResponse(res, { message: "Error creating user", error: err.message, status: 500 });
   }
 };
@@ -35,7 +55,11 @@ const loginUser = async (req, res) => {
     const { email, password } = req.body;
 
     const user = await pool.query(
-      "SELECT * FROM users WHERE email = $1",
+      `
+      SELECT id, name, email, password, role, school_id, teacher_id
+      FROM users
+      WHERE email = $1
+      `,
       [email]
     );
 
@@ -52,26 +76,7 @@ const loginUser = async (req, res) => {
       return errorResponse(res, { message: "Invalid password", error: "Invalid password", status: 400 });
     }
 
-    let teacherId = null;
-
-    if (user.rows[0].role === "teacher") {
-      const teacherResponse = await pool.query(
-        "SELECT id FROM teachers WHERE teacher_name ILIKE $1 LIMIT 1",
-        [user.rows[0].name]
-      );
-
-      teacherId = teacherResponse.rows[0]?.id || null;
-    }
-
-    const tokenPayload = {
-      id: user.rows[0].id,
-      role: user.rows[0].role,
-      school_id: user.rows[0].school_id,
-    };
-
-    if (teacherId) {
-      tokenPayload.teacher_id = teacherId;
-    }
+    const tokenPayload = buildJwtPayload(user.rows[0]);
 
     const token = jwt.sign(
       tokenPayload,
@@ -81,7 +86,17 @@ const loginUser = async (req, res) => {
       }
     );
 
-    return successResponse(res, { data: { token, user: { id: user.rows[0].id, name: user.rows[0].name, role: user.rows[0].role } } });
+    return successResponse(res, {
+      data: {
+        token,
+        user: {
+          id: user.rows[0].id,
+          name: user.rows[0].name,
+          role: user.rows[0].role,
+          teacher_id: tokenPayload.teacher_id,
+        },
+      },
+    });
   } catch (err) {
     console.error(err);
     return errorResponse(res, { message: "Login error", error: err.message, status: 500 });
