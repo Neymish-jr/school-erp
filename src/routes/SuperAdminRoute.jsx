@@ -1,4 +1,5 @@
 import { Navigate } from "react-router-dom";
+import { LEGACY_ROLES } from "../constants/roles";
 import { getAuthRole } from "../utils/auth";
 
 function SuperAdminRoute({ children }) {
@@ -8,7 +9,7 @@ function SuperAdminRoute({ children }) {
     return <Navigate to="/" replace />;
   }
 
-  if (getAuthRole() !== "super_admin") {
+  if (getAuthRole() !== LEGACY_ROLES.SUPER_ADMIN) {
     return <Navigate to="/dashboard" replace />;
   }
 

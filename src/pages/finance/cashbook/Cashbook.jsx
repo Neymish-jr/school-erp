@@ -69,6 +69,7 @@ function Cashbook() {
   const [entries, setEntries] = useState([]);
   const [summary, setSummary] = useState(null);
   const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, total_pages: 1 });
+  const [isReferenceReady, setIsReferenceReady] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isExporting, setIsExporting] = useState(false);
   const [error, setError] = useState("");
@@ -87,6 +88,39 @@ function Cashbook() {
       (subHead) => String(subHead.budget_head_id) === String(selectedHeadId)
     );
   }, [budgetSubHeads, selectedHeadId]);
+
+  const financialYearOptions = useMemo(
+    () => [
+      { value: "", label: "All years" },
+      ...financialYears.map((fy) => ({
+        value: String(fy.id),
+        label: `${fy.year_label} (${fy.status})`,
+      })),
+    ],
+    [financialYears]
+  );
+
+  const budgetHeadOptions = useMemo(
+    () => [
+      { value: "", label: "All heads" },
+      ...budgetHeads.map((head) => ({
+        value: String(head.id),
+        label: head.head_name,
+      })),
+    ],
+    [budgetHeads]
+  );
+
+  const budgetSubHeadOptions = useMemo(
+    () => [
+      { value: "", label: "All sub heads" },
+      ...filteredSubHeads.map((subHead) => ({
+        value: String(subHead.id),
+        label: subHead.sub_head_name,
+      })),
+    ],
+    [filteredSubHeads]
+  );
 
   const loadReferenceData = useCallback(async () => {
     try {
@@ -110,6 +144,8 @@ function Cashbook() {
     } catch (loadError) {
       console.error(loadError);
       setError("Failed to load cashbook reference data.");
+    } finally {
+      setIsReferenceReady(true);
     }
   }, []);
 
@@ -170,10 +206,12 @@ function Cashbook() {
   }, [loadReferenceData]);
 
   useEffect(() => {
-    if (selectedFyId) {
-      loadCashbook();
+    if (!isReferenceReady) {
+      return;
     }
-  }, [loadCashbook, selectedFyId]);
+
+    loadCashbook();
+  }, [loadCashbook, isReferenceReady]);
 
   const handleExport = async () => {
     setIsExporting(true);
@@ -255,7 +293,7 @@ function Cashbook() {
           />
           <MetricCard
             label="Financial Year"
-            value={selectedFinancialYear?.year_label || "—"}
+            value={selectedFinancialYear?.year_label || "All years"}
             hint="Active filter"
           />
         </MetricGrid>
@@ -268,14 +306,8 @@ function Cashbook() {
               setSelectedFyId(event.target.value);
               setPagination((prev) => ({ ...prev, page: 1 }));
             }}
-          >
-            <option value="">All years</option>
-            {financialYears.map((fy) => (
-              <option key={fy.id} value={fy.id}>
-                {fy.year_label} ({fy.status})
-              </option>
-            ))}
-          </FilterSelect>
+            options={financialYearOptions}
+          />
 
           <FilterSelect
             label="Budget Head"
@@ -285,14 +317,8 @@ function Cashbook() {
               setSelectedSubHeadId("");
               setPagination((prev) => ({ ...prev, page: 1 }));
             }}
-          >
-            <option value="">All heads</option>
-            {budgetHeads.map((head) => (
-              <option key={head.id} value={head.id}>
-                {head.head_name}
-              </option>
-            ))}
-          </FilterSelect>
+            options={budgetHeadOptions}
+          />
 
           <FilterSelect
             label="Sub Head"
@@ -301,14 +327,8 @@ function Cashbook() {
               setSelectedSubHeadId(event.target.value);
               setPagination((prev) => ({ ...prev, page: 1 }));
             }}
-          >
-            <option value="">All sub heads</option>
-            {filteredSubHeads.map((subHead) => (
-              <option key={subHead.id} value={subHead.id}>
-                {subHead.sub_head_name}
-              </option>
-            ))}
-          </FilterSelect>
+            options={budgetSubHeadOptions}
+          />
 
           <label className="block text-sm">
             <span className="font-medium text-slate-300">From</span>

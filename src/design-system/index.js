@@ -21,6 +21,7 @@ export {
 export { default as TablePagination } from "./components/TablePagination";
 export { FormField, Input, Select, FormGrid, FormActions } from "./components/FormControls";
 export { default as ErpModal } from "./components/ErpModal";
+export { default as ErpDrawer } from "./components/ErpDrawer";
 export { Badge, VacancyCell } from "./components/Badge";
 export { default as StaffSummary } from "./components/StaffSummary";
 export { default as StaffDirectoryRow } from "./components/StaffDirectoryRow";

@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 
 import Login from "../pages/auth/Login";
 import Dashboard from "../pages/dashboard/Dashboard";
@@ -14,16 +14,20 @@ import Results from "../pages/results/Results";
 import ReportCard from "../pages/reportCard/ReportCard";
 import Timetable from "../pages/timetable/Timetable";
 import StaffPosts from "../pages/staffPosts/StaffPosts";
-import AdministrativeCharges from "../pages/administrativeCharges/AdministrativeCharges";
-import TeacherAdministrativeCharges from "../pages/teacherAdministrativeCharges/TeacherAdministrativeCharges";
+import SchoolCharges from "../pages/schoolCharges/SchoolCharges";
 import TeacherProfile from "../pages/teachers/TeacherProfile";
 import ComingSoon from "../pages/comingSoon/ComingSoon";
 import FinancialYears from "../pages/finance/financialYears/FinancialYears";
 import BudgetStructure from "../pages/finance/budgetStructure/BudgetStructure";
 import BudgetAllocations from "../pages/finance/budgetAllocations/BudgetAllocations";
 import ExpenseRequests from "../pages/finance/expenseRequests/ExpenseRequests";
+import ExpenseRequestDetail from "../pages/finance/expenseRequests/ExpenseRequestDetail";
 import Cashbook from "../pages/finance/cashbook/Cashbook";
+import Activities from "../pages/activities/Activities";
+import ActivityDetail from "../pages/activities/ActivityDetail";
+import StockRegister from "../pages/stockRegister/StockRegister";
 import AdminOrSuperAdminRoute from "./AdminOrSuperAdminRoute.jsx";
+import Quotations from "../pages/quotations/Quotations";
 
 function AppRoutes() {
   return (
@@ -131,20 +135,25 @@ function AppRoutes() {
         />
 
         <Route
-          path="/administrative-charges"
+          path="/school-charges"
           element={
             <ProtectedRoute>
-              <AdministrativeCharges />
+              <SchoolCharges />
             </ProtectedRoute>
+          }
+        />
+
+        <Route
+          path="/administrative-charges"
+          element={
+            <Navigate to="/school-charges?tab=catalog" replace />
           }
         />
 
         <Route
           path="/teacher-administrative-charges"
           element={
-            <ProtectedRoute>
-              <TeacherAdministrativeCharges />
-            </ProtectedRoute>
+            <Navigate to="/school-charges?tab=assignments" replace />
           }
         />
 
@@ -198,6 +207,15 @@ function AppRoutes() {
         />
 
         <Route
+          path="/finance/expense-requests/:id"
+          element={
+            <ProtectedRoute>
+              <ExpenseRequestDetail />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
           path="/finance/cashbook"
           element={
             <ProtectedRoute>
@@ -231,7 +249,9 @@ function AppRoutes() {
           path="/stock-register"
           element={
             <ProtectedRoute>
-              <ComingSoon />
+              <AdminOrSuperAdminRoute>
+                <StockRegister />
+              </AdminOrSuperAdminRoute>
             </ProtectedRoute>
           }
         />
@@ -239,7 +259,7 @@ function AppRoutes() {
           path="/quotations"
           element={
             <ProtectedRoute>
-              <ComingSoon />
+              <Quotations />
             </ProtectedRoute>
           }
         />
@@ -247,7 +267,15 @@ function AppRoutes() {
           path="/activities"
           element={
             <ProtectedRoute>
-              <ComingSoon />
+              <Activities />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/activities/:id"
+          element={
+            <ProtectedRoute>
+              <ActivityDetail />
             </ProtectedRoute>
           }
         />

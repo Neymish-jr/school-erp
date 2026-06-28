@@ -87,12 +87,14 @@ function DataTableEmpty({ colSpan, message = "No records found." }) {
   );
 }
 
-function DataTableSkeleton({ rows = 5, cols = 6 }) {
+function DataTableSkeleton({ rows = 5, cols, columns }) {
+  const columnCount = cols || columns || 6;
+
   return (
     <>
       {Array.from({ length: rows }).map((_, rowIndex) => (
         <DataTableRow key={rowIndex}>
-          {Array.from({ length: cols }).map((__, colIndex) => (
+          {Array.from({ length: columnCount }).map((__, colIndex) => (
             <DataTableCell key={colIndex}>
               <div
                 className="h-4 animate-pulse rounded-md bg-slate-800"

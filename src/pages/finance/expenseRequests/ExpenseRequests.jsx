@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
 import DashboardLayout from "../../../layouts/DashboardLayout";
@@ -15,7 +16,8 @@ import {
   submitExpenseRequest,
   updateExpenseRequest,
 } from "../../../api/finance";
-import { getAuthRole } from "../../../utils/auth";
+import { fetchStockConfig } from "../../../api/stock";
+import { isAdminLike, isTeacher } from "../../../utils/auth";
 import {
   PageHeader,
   MetricGrid,
@@ -58,6 +60,8 @@ const emptyForm = {
   purpose: "",
   vendor_name: "",
   remarks: "",
+  item_name: "",
+  quantity: "",
 };
 
 const emptyRejectForm = { rejection_remarks: "" };
@@ -65,6 +69,10 @@ const emptyPaidForm = {
   payment_voucher_no: "",
   payment_transaction_id: "",
   paid_at: "",
+  create_stock_entry: false,
+  stock_category: "",
+  stock_unit: "pcs",
+  purchase_rate: "",
 };
 
 const formatCurrency = (value) => {
@@ -111,9 +119,8 @@ const StatusBadge = ({ status }) => {
 };
 
 function ExpenseRequests() {
-  const role = getAuthRole();
-  const isTeacher = role === "teacher";
-  const isAdmin = role === "admin";
+  const isTeacherUser = isTeacher();
+  const isAdmin = isAdminLike();
 
   const [financialYears, setFinancialYears] = useState([]);
   const [selectedFyId, setSelectedFyId] = useState("");
@@ -132,6 +139,7 @@ function ExpenseRequests() {
   const [formData, setFormData] = useState(emptyForm);
   const [rejectForm, setRejectForm] = useState(emptyRejectForm);
   const [paidForm, setPaidForm] = useState(emptyPaidForm);
+  const [stockCategories, setStockCategories] = useState([]);
   const [isSaving, setIsSaving] = useState(false);
 
   const financialYearOptions = useMemo(() => {
@@ -156,6 +164,21 @@ function ExpenseRequests() {
     () => summary.find((row) => row.status === "pending")?.request_count || 0,
     [summary]
   );
+
+  useEffect(() => {
+    const loadStockConfig = async () => {
+      try {
+        const response = await fetchStockConfig();
+        setStockCategories(response?.data?.data?.categories || []);
+      } catch {
+        setStockCategories([]);
+      }
+    };
+
+    if (isAdmin) {
+      loadStockConfig();
+    }
+  }, [isAdmin]);
 
   const loadReferenceData = useCallback(async () => {
     try {
@@ -269,6 +292,8 @@ function ExpenseRequests() {
       purpose: request.purpose || "",
       vendor_name: request.vendor_name || "",
       remarks: request.remarks || "",
+      item_name: request.item_name || "",
+      quantity: request.quantity != null ? String(request.quantity) : "",
     });
     setIsModalOpen(true);
   };
@@ -295,6 +320,8 @@ function ExpenseRequests() {
       purpose: formData.purpose.trim(),
       vendor_name: formData.vendor_name.trim(),
       remarks: formData.remarks.trim(),
+      item_name: formData.item_name.trim() || null,
+      quantity: formData.quantity ? Number(formData.quantity) : null,
     };
 
     try {
@@ -378,7 +405,13 @@ function ExpenseRequests() {
 
   const openPaidModal = (request) => {
     setActionTarget(request);
-    setPaidForm(emptyPaidForm);
+    setPaidForm({
+      ...emptyPaidForm,
+      purchase_rate:
+        request.quantity && Number(request.quantity) > 0
+          ? String((Number(request.requested_amount) / Number(request.quantity)).toFixed(2))
+          : "",
+    });
     setPaidModalOpen(true);
   };
 
@@ -392,6 +425,10 @@ function ExpenseRequests() {
         payment_voucher_no: paidForm.payment_voucher_no.trim(),
         payment_transaction_id: paidForm.payment_transaction_id.trim(),
         paid_at: paidForm.paid_at || undefined,
+        create_stock_entry: Boolean(paidForm.create_stock_entry),
+        stock_category: paidForm.create_stock_entry ? paidForm.stock_category : undefined,
+        stock_unit: paidForm.create_stock_entry ? paidForm.stock_unit.trim() : undefined,
+        purchase_rate: paidForm.purchase_rate ? Number(paidForm.purchase_rate) : undefined,
       });
       toast.success("Expense request marked as paid");
       setPaidModalOpen(false);
@@ -412,7 +449,7 @@ function ExpenseRequests() {
           title="Expense Requests"
           description="Teachers submit expenses against budget allocations. Admin approves and records payment."
           actions={
-            isTeacher ? (
+            isTeacherUser ? (
               <Button variant="primary" onClick={openCreateModal}>
                 New Request
               </Button>
@@ -486,7 +523,10 @@ function ExpenseRequests() {
                   <DataTableCell>{request.submitted_by_name || request.created_by_name || "—"}</DataTableCell>
                   <DataTableCell align="right">
                     <div className="flex flex-wrap justify-end gap-2">
-                      {isTeacher && request.status === "draft" ? (
+                      <Link to={`/finance/expense-requests/${request.id}`}>
+                        <Button variant="ghost">View</Button>
+                      </Link>
+                      {isTeacherUser && request.status === "draft" ? (
                         <>
                           <Button variant="ghost" onClick={() => openEditModal(request)}>
                             Edit
@@ -585,6 +625,26 @@ function ExpenseRequests() {
             <Input name="remarks" value={formData.remarks} onChange={handleInputChange} />
           </FormField>
 
+          <FormField label="Inventory Item Name (optional)">
+            <Input
+              name="item_name"
+              value={formData.item_name}
+              onChange={handleInputChange}
+              placeholder="Football set"
+            />
+          </FormField>
+
+          <FormField label="Quantity (optional)">
+            <Input
+              name="quantity"
+              type="number"
+              min="0.01"
+              step="0.01"
+              value={formData.quantity}
+              onChange={handleInputChange}
+            />
+          </FormField>
+
           <FormActions>
             <Button type="button" variant="ghost" onClick={closeModal}>
               Cancel
@@ -651,6 +711,78 @@ function ExpenseRequests() {
               }
             />
           </FormField>
+
+          {actionTarget?.item_name && actionTarget?.quantity ? (
+            <>
+              <Alert variant="info">
+                This request includes inventory ({actionTarget.item_name}, qty{" "}
+                {actionTarget.quantity}). You can optionally create a stock entry after payment.
+              </Alert>
+              <label className="flex items-center gap-2 text-sm text-slate-200">
+                <input
+                  type="checkbox"
+                  checked={paidForm.create_stock_entry}
+                  onChange={(event) =>
+                    setPaidForm((prev) => ({
+                      ...prev,
+                      create_stock_entry: event.target.checked,
+                    }))
+                  }
+                />
+                Create stock entry after payment
+              </label>
+              {paidForm.create_stock_entry ? (
+                <>
+                  <FormField label="Stock Category">
+                    <Select
+                      name="stock_category"
+                      value={paidForm.stock_category}
+                      onChange={(event) =>
+                        setPaidForm((prev) => ({
+                          ...prev,
+                          stock_category: event.target.value,
+                        }))
+                      }
+                      required
+                    >
+                      <option value="">Select category</option>
+                      {stockCategories.map((row) => (
+                        <option key={row.value} value={row.value}>
+                          {row.label}
+                        </option>
+                      ))}
+                    </Select>
+                  </FormField>
+                  <FormField label="Unit">
+                    <Input
+                      name="stock_unit"
+                      value={paidForm.stock_unit}
+                      onChange={(event) =>
+                        setPaidForm((prev) => ({ ...prev, stock_unit: event.target.value }))
+                      }
+                      required
+                    />
+                  </FormField>
+                  <FormField label="Purchase Rate (optional)">
+                    <Input
+                      name="purchase_rate"
+                      type="number"
+                      min="0.01"
+                      step="0.01"
+                      value={paidForm.purchase_rate}
+                      onChange={(event) =>
+                        setPaidForm((prev) => ({
+                          ...prev,
+                          purchase_rate: event.target.value,
+                        }))
+                      }
+                    />
+                  </FormField>
+                </>
+              ) : null}
+            </>
+          ) : null}
+
           <FormActions>
             <Button type="button" variant="ghost" onClick={() => setPaidModalOpen(false)}>
               Cancel

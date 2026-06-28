@@ -1,3 +1,8 @@
+import {
+  ADMIN_LIKE_LEGACY_ROLES,
+  LEGACY_ROLES,
+} from "../constants/roles";
+
 const navigation = [
   {
     label: "Dashboard",
@@ -24,15 +29,7 @@ const navigation = [
       { label: "Teachers", path: "/teachers" },
       { label: "Teacher Subjects", path: "/teacher-subjects" },
       { label: "Staff Posts", path: "/staff-posts" },
-      { label: "Administrative Charges", path: "/administrative-charges" },
-      { label: "Assignments", path: "/teacher-administrative-charges" },
-    ],
-  },
-  {
-    label: "Administration",
-    icon: "mdi:cog",
-    children: [
-      { label: "Activities", path: "/activities" },
+      { label: "School Charges", path: "/school-charges" },
     ],
   },
   {
@@ -43,14 +40,16 @@ const navigation = [
       {
         label: "Budget Structure",
         path: "/finance/budget-structure",
-        roles: ["super_admin"],
+        roles: [LEGACY_ROLES.SUPER_ADMIN],
       },
       { label: "Budget Allocations", path: "/finance/budget-allocations" },
+      { label: "Activities", path: "/activities" },
       { label: "Expense Requests", path: "/finance/expense-requests" },
+      { label: "Quotations", path: "/quotations" },
       {
         label: "Cashbook",
         path: "/finance/cashbook",
-        roles: ["admin", "super_admin"],
+        roles: [...ADMIN_LIKE_LEGACY_ROLES],
       },
     ],
   },
@@ -58,8 +57,11 @@ const navigation = [
     label: "Resources",
     icon: "mdi:package",
     children: [
-      { label: "Stock Register", path: "/stock-register" },
-      { label: "Quotations", path: "/quotations" },
+      {
+        label: "Stock Register",
+        path: "/stock-register",
+        roles: [...ADMIN_LIKE_LEGACY_ROLES],
+      },
     ],
   },
   {

@@ -44,22 +44,47 @@ function FilterSearch({ value, onChange, placeholder = "Search...", className = 
   );
 }
 
-function FilterSelect({ value, onChange, options, disabled = false, className = "", "aria-label": ariaLabel }) {
-  return (
+function FilterSelect({
+  value,
+  onChange,
+  options = [],
+  children,
+  disabled = false,
+  className = "",
+  label,
+  "aria-label": ariaLabel,
+}) {
+  const safeOptions = Array.isArray(options) ? options : [];
+  const optionNodes =
+    children ??
+    safeOptions.map((option) => (
+      <option key={option.value} value={option.value} className="bg-slate-950">
+        {option.label}
+      </option>
+    ));
+
+  const select = (
     <select
       value={value}
       onChange={onChange}
       disabled={disabled}
-      aria-label={ariaLabel}
+      aria-label={ariaLabel || label}
       className={`${erp.select} xl:w-52 ${className}`}
     >
-      {options.map((option) => (
-        <option key={option.value} value={option.value} className="bg-slate-950">
-          {option.label}
-        </option>
-      ))}
+      {optionNodes}
     </select>
   );
+
+  if (label) {
+    return (
+      <label className="block text-sm">
+        <span className="mb-1.5 block font-medium text-slate-300">{label}</span>
+        {select}
+      </label>
+    );
+  }
+
+  return select;
 }
 
 function FilterCheckbox({ checked, onChange, label }) {

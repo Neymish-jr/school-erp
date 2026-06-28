@@ -16,7 +16,7 @@ import API from "../../api/axios";
 import { fetchFinanceDashboardMetrics } from "../../api/finance";
 import DashboardLayout from "../../layouts/DashboardLayout";
 import StatsCard from "../../components/StatsCard";
-import { getAuthRole } from "../../utils/auth";
+import { isAdminLike } from "../../utils/auth";
 
 const parseWidgetValue = (response) => {
   const value = response?.data?.data;
@@ -49,8 +49,7 @@ const formatCurrency = (value) => {
 };
 
 function Dashboard() {
-  const role = getAuthRole();
-  const canViewFinance = ["admin", "super_admin"].includes(role);
+  const canViewFinance = isAdminLike();
 
   const [stats, setStats] = useState(null);
   const [isLoading, setIsLoading] = useState(true);

@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { isTeacherLegacy } from "../../constants/roles";
+
 import DashboardLayout from "../../layouts/DashboardLayout";
 
 import API from "../../api/axios";
@@ -290,7 +292,7 @@ function TeacherAssignments() {
 
 
 
-    setIsTeacher(payload.role === "teacher");
+    setIsTeacher(isTeacherLegacy(payload.role));
 
   }, []);
 

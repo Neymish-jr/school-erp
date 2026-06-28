@@ -7,6 +7,7 @@ import {
 } from "react-icons/hi2";
 import API from "../../api/axios";
 import DashboardLayout from "../../layouts/DashboardLayout";
+import { isTeacherLegacy } from "../../constants/roles";
 
 const ATTENDANCE_STATUSES = ["Present", "Absent", "Leave"];
 const DEFAULT_PERIOD = 1;
@@ -129,7 +130,7 @@ function Attendance() {
   useEffect(() => {
     const payload = decodeToken();
 
-    setIsTeacher(payload.role === "teacher");
+    setIsTeacher(isTeacherLegacy(payload.role));
   }, []);
 
   useEffect(() => {
