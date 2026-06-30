@@ -1,9 +1,11 @@
 const pool = require("../db");
+const { isPmShriChargeCode } = require("../utils/chargeCode");
 const { buildSchoolClause } = require("../utils/tenantScope");
 
 const CHARGE_SELECT = `
   ac.id,
   ac.charge_name,
+  ac.charge_code,
   ac.description,
   ac.is_active,
   ac.school_id,
@@ -28,15 +30,14 @@ const ASSIGNMENT_SELECT = `
   taca.updated_at
 `;
 
-const isPmShriCharge = (chargeName) => /PM\s*SHRI/i.test(String(chargeName || ""));
-
 const formatCharge = (row) => ({
   id: row.id,
   charge_name: row.charge_name,
+  charge_code: row.charge_code,
   description: row.description,
   is_active: row.is_active,
   school_id: row.school_id,
-  is_pm_shri: isPmShriCharge(row.charge_name),
+  is_pm_shri: isPmShriChargeCode(row.charge_code),
   created_at: row.created_at,
   updated_at: row.updated_at,
 });
@@ -139,6 +140,7 @@ const getChargeById = async (chargeId, scope) => {
 const formatChargeListRow = (row) => ({
   id: row.id,
   charge_name: row.charge_name,
+  charge_code: row.charge_code,
   description: row.description,
   is_active: row.is_active,
   school_id: row.school_id,
@@ -257,6 +259,5 @@ module.exports = {
   getAssignmentsForCharge,
   getChargeById,
   getChargeDetails,
-  isPmShriCharge,
   listAdministrativeCharges,
 };

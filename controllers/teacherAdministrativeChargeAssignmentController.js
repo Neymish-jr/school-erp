@@ -13,6 +13,7 @@ const getBaseAssignmentQuery = () => `
     t.teacher_name,
     taca.administrative_charge_id,
     ac.charge_name,
+    ac.charge_code,
     taca.academic_year,
     taca.assigned_on,
     taca.relieved_on,
@@ -98,7 +99,7 @@ const getAvailableCharges = async (req, res) => {
     
     // Fetch active administrative charges NOT currently actively assigned to ANY teacher
     const query = `
-      SELECT ac.id, ac.charge_name, ac.description
+      SELECT ac.id, ac.charge_name, ac.charge_code, ac.description
       FROM administrative_charges ac
       WHERE ac.school_id = $1 AND ac.is_active = true
       AND NOT EXISTS (

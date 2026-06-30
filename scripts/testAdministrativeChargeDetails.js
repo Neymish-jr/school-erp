@@ -10,6 +10,7 @@ const path = require("path");
 const jwt = require("jsonwebtoken");
 const pool = require("../db");
 const administrativeChargeService = require("../services/administrativeChargeService");
+const { resolveChargeCode } = require("../utils/chargeCode");
 
 const BASE_URL = process.env.TEST_API_BASE || "http://localhost:3000";
 const SCHOOL_ONE = 1;
@@ -70,6 +71,11 @@ const ensureSchema = async () => {
       updated_at TIMESTAMP DEFAULT NOW(),
       CONSTRAINT administrative_charges_school_name_unique UNIQUE (school_id, charge_name)
     )
+  `);
+
+  await pool.query(`
+    ALTER TABLE administrative_charges
+    ADD COLUMN IF NOT EXISTS charge_code VARCHAR(50)
   `);
 
   await pool.query(`
@@ -152,14 +158,16 @@ const createTeacher = async (schoolId, name) => {
   return result.rows[0].id;
 };
 
-const createCharge = async ({ schoolId, chargeName, description = "" }) => {
+const createCharge = async ({ schoolId, chargeName, chargeCode, description = "" }) => {
+  const resolvedChargeCode = chargeCode || resolveChargeCode(chargeName);
+
   const result = await pool.query(
     `
-    INSERT INTO administrative_charges (charge_name, description, school_id)
-    VALUES ($1, $2, $3)
+    INSERT INTO administrative_charges (charge_name, charge_code, description, school_id)
+    VALUES ($1, $2, $3, $4)
     RETURNING id
     `,
-    [chargeName, description, schoolId]
+    [chargeName, resolvedChargeCode, description, schoolId]
   );
 
   created.chargeIds.push(result.rows[0].id);
@@ -241,6 +249,7 @@ const setupFixtures = async () => {
   const activeChargeId = await createCharge({
     schoolId: SCHOOL_ONE,
     chargeName: `${TEST_PREFIX}PM SHRI In-Charge`,
+    chargeCode: "pm_shri_incharge",
     description: "Charge with active holder",
   });
 

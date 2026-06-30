@@ -267,24 +267,24 @@ const seedStaffPosts = async (client) => {
 };
 
 const seedAdministrativeCharges = async (client) => {
-  const chargeIdByName = {};
+  const chargeIdByCode = {};
 
   for (const charge of ADMINISTRATIVE_CHARGES) {
     const result = await client.query(
       `
-      INSERT INTO administrative_charges (charge_name, description, school_id, is_active)
-      VALUES ($1, $2, $3, true)
-      RETURNING id, charge_name
+      INSERT INTO administrative_charges (charge_name, charge_code, description, school_id, is_active)
+      VALUES ($1, $2, $3, $4, true)
+      RETURNING id, charge_code
       `,
-      [charge.charge_name, charge.description, manifest.school_id]
+      [charge.charge_name, charge.charge_code, charge.description, manifest.school_id]
     );
 
-    chargeIdByName[charge.charge_name] = result.rows[0].id;
+    chargeIdByCode[charge.charge_code] = result.rows[0].id;
     manifest.charge_ids.push(result.rows[0].id);
   }
 
   log(`Administrative charges created (${ADMINISTRATIVE_CHARGES.length})`);
-  return chargeIdByName;
+  return chargeIdByCode;
 };
 
 const seedStaffPostAssignments = async (client, teacherIdByKey, userIdByKey, postIdByName) => {
@@ -329,10 +329,14 @@ const seedStaffPostAssignments = async (client, teacherIdByKey, userIdByKey, pos
   log(`Staff post assignments created (${count})`);
 };
 
-const seedChargeAssignments = async (client, teacherIdByKey, chargeIdByName) => {
+const chargeNameByCode = Object.fromEntries(
+  ADMINISTRATIVE_CHARGES.map((charge) => [charge.charge_code, charge.charge_name])
+);
+
+const seedChargeAssignments = async (client, teacherIdByKey, chargeIdByCode) => {
   for (const assignment of CHARGE_ASSIGNMENTS) {
     const teacherId = teacherIdByKey[assignment.teacher_key];
-    const chargeId = chargeIdByName[assignment.charge_name];
+    const chargeId = chargeIdByCode[assignment.charge_code];
 
     const result = await client.query(
       `
@@ -355,7 +359,7 @@ const seedChargeAssignments = async (client, teacherIdByKey, chargeIdByName) => 
         manifest.school_id,
         DEMO_ACADEMIC_YEAR,
         manifest.admin_user_id,
-        `Demo seed assignment for ${assignment.charge_name}`,
+        `Demo seed assignment for ${chargeNameByCode[assignment.charge_code] || assignment.charge_code}`,
       ]
     );
 
@@ -544,7 +548,7 @@ const run = async () => {
       passwordHash
     );
     const postIdByName = await seedStaffPosts(client);
-    const chargeIdByName = await seedAdministrativeCharges(client);
+    const chargeIdByCode = await seedAdministrativeCharges(client);
 
     await seedStaffPostAssignments(
       client,
@@ -552,7 +556,7 @@ const run = async () => {
       userIdByKey,
       postIdByName
     );
-    await seedChargeAssignments(client, teacherIdByKey, chargeIdByName);
+    await seedChargeAssignments(client, teacherIdByKey, chargeIdByCode);
 
     const subjectIdByCode = await seedSubjects(client);
     const sectionIdByKey = await seedClassSections(client);

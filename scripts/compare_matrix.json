@@ -1,0 +1,44 @@
+{
+  "super_admin": {
+    "matrixCount": 167,
+    "sqlCount": 167,
+    "expected": 167,
+    "extraInSql": [],
+    "missingInSql": []
+  },
+  "dpo": {
+    "matrixCount": 57,
+    "sqlCount": 57,
+    "expected": 56,
+    "extraInSql": [],
+    "missingInSql": []
+  },
+  "beo": {
+    "matrixCount": 57,
+    "sqlCount": 57,
+    "expected": 56,
+    "extraInSql": [],
+    "missingInSql": []
+  },
+  "principal": {
+    "matrixCount": 116,
+    "sqlCount": 116,
+    "expected": 116,
+    "extraInSql": [],
+    "missingInSql": []
+  },
+  "office_staff": {
+    "matrixCount": 56,
+    "sqlCount": 56,
+    "expected": 51,
+    "extraInSql": [],
+    "missingInSql": []
+  },
+  "teacher": {
+    "matrixCount": 39,
+    "sqlCount": 39,
+    "expected": 36,
+    "extraInSql": [],
+    "missingInSql": []
+  }
+}

@@ -37,15 +37,15 @@ const STAFF_POSTS = [
 ];
 
 const ADMINISTRATIVE_CHARGES = [
-  { charge_name: "PM SHRI Incharge", description: "PM SHRI programme coordination" },
-  { charge_name: "Examination Incharge", description: "Board and internal examinations" },
-  { charge_name: "Library Incharge", description: "School library operations" },
-  { charge_name: "Sports Incharge", description: "Sports and physical education events" },
-  { charge_name: "Mid Day Meal Incharge", description: "MDM scheme monitoring" },
-  { charge_name: "Scholarship Incharge", description: "Scholarship applications and records" },
-  { charge_name: "UDISE Incharge", description: "UDISE+ data and compliance" },
-  { charge_name: "Discipline Incharge", description: "Student discipline and conduct" },
-  { charge_name: "Time Table Incharge", description: "School timetable preparation" },
+  { charge_code: "pm_shri_incharge", charge_name: "PM SHRI Incharge", description: "PM SHRI programme coordination" },
+  { charge_code: "board_exam_incharge", charge_name: "Examination Incharge", description: "Board and internal examinations" },
+  { charge_code: "library_incharge", charge_name: "Library Incharge", description: "School library operations" },
+  { charge_code: "sports_incharge", charge_name: "Sports Incharge", description: "Sports and physical education events" },
+  { charge_code: "mdm_incharge", charge_name: "Mid Day Meal Incharge", description: "MDM scheme monitoring" },
+  { charge_code: "scholarship_incharge", charge_name: "Scholarship Incharge", description: "Scholarship applications and records" },
+  { charge_code: "udise_incharge", charge_name: "UDISE Incharge", description: "UDISE+ data and compliance" },
+  { charge_code: "discipline_incharge", charge_name: "Discipline Incharge", description: "Student discipline and conduct" },
+  { charge_code: "timetable_incharge", charge_name: "Time Table Incharge", description: "School timetable preparation" },
 ];
 
 /** Charges left vacant intentionally */
@@ -97,12 +97,12 @@ const TEACHERS = [
 ];
 
 const CHARGE_ASSIGNMENTS = [
-  { charge_name: "PM SHRI Incharge", teacher_key: "principal" },
-  { charge_name: "Examination Incharge", teacher_key: "maths" },
-  { charge_name: "Library Incharge", teacher_key: "english" },
-  { charge_name: "Sports Incharge", teacher_key: "pet" },
-  { charge_name: "UDISE Incharge", teacher_key: "clerk" },
-  { charge_name: "Time Table Incharge", teacher_key: "hindi" },
+  { charge_code: "pm_shri_incharge", teacher_key: "principal" },
+  { charge_code: "board_exam_incharge", teacher_key: "maths" },
+  { charge_code: "library_incharge", teacher_key: "english" },
+  { charge_code: "sports_incharge", teacher_key: "pet" },
+  { charge_code: "udise_incharge", teacher_key: "clerk" },
+  { charge_code: "timetable_incharge", teacher_key: "hindi" },
 ];
 
 const SUBJECT_KEY_TO_CODE = {

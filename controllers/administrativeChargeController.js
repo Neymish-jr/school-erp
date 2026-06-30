@@ -6,6 +6,7 @@ const {
   buildSchoolClause,
 } = require("../utils/tenantScope");
 const administrativeChargeService = require("../services/administrativeChargeService");
+const { resolveChargeCode } = require("../utils/chargeCode");
 
 const normalizeChargePayload = (payload = {}) => ({
   charge_name: String(payload.charge_name || "").trim(),
@@ -103,6 +104,7 @@ const getAdministrativeChargeById = async (req, res) => {
       SELECT
         id,
         charge_name,
+        charge_code,
         description,
         is_active,
         school_id,
@@ -145,19 +147,22 @@ const createAdministrativeCharge = async (req, res) => {
     }
 
     const payload = normalizeChargePayload(req.body);
+    const chargeCode = resolveChargeCode(payload.charge_name);
 
     const result = await pool.query(
       `
       INSERT INTO administrative_charges (
         charge_name,
+        charge_code,
         description,
         school_id
       )
-      VALUES ($1, $2, $3)
+      VALUES ($1, $2, $3, $4)
       RETURNING *
       `,
       [
         payload.charge_name,
+        chargeCode,
         payload.description,
         schoolId,
       ]
@@ -171,7 +176,7 @@ const createAdministrativeCharge = async (req, res) => {
   } catch (err) {
     if (err?.code === "23505") {
       return errorResponse(res, {
-        message: "An administrative charge with this name already exists",
+        message: "An administrative charge with this charge code already exists for this school",
         error: "Duplicate administrative charge",
         status: 409,
       });
