@@ -37,6 +37,7 @@ const budgetSubHeadRoutes = require("./routes/budgetSubHeadRoutes");
 const budgetAllocationRoutes = require("./routes/budgetAllocationRoutes");
 const expenseRequestRoutes = require("./routes/expenseRequestRoutes");
 const financeCashbookRoutes = require("./routes/financeCashbookRoutes");
+const schoolRoutes = require("./routes/schoolRoutes");
 const cors = require("cors");
 const attendanceRoutes = require("./routes/attendanceRoutes");
 const uploadRoutes = require("./routes/uploadRoutes");
@@ -683,6 +684,7 @@ app.use("/api/budget-sub-heads", budgetSubHeadRoutes);
 app.use("/api/budget-allocations", budgetAllocationRoutes);
 app.use("/api/expense-requests", expenseRequestRoutes);
 app.use("/api/finance/cashbook", financeCashbookRoutes);
+app.use("/api/schools", schoolRoutes);
 app.use("/", authRoutes);
 
 

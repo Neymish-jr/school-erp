@@ -147,7 +147,7 @@ const assertActivityLinkForExpenseRequest = async ({
 const buildActivityAccessClause = ({ role, schoolId, userId, teacherId, params }) => {
   const clauses = ["1=1"];
 
-  if (role !== "super_admin" && schoolId != null) {
+  if (schoolId != null) {
     params.push(schoolId);
     clauses.push(`a.school_id = $${params.length}`);
   }
@@ -226,7 +226,7 @@ const getActivityById = async ({
     WHERE a.id = $1
   `;
 
-  if (role !== "super_admin" && schoolId != null) {
+  if (schoolId != null) {
     params.push(schoolId);
     query += ` AND a.school_id = $${params.length}`;
   }
@@ -288,7 +288,7 @@ const getActivityDashboard = async ({ schoolId, role, teacherId, financialYearId
 
   const budgetParams = [];
   let budgetFyClause = "";
-  if (role !== "super_admin" && schoolId != null) {
+  if (schoolId != null) {
     budgetParams.push(schoolId);
   }
   if (financialYearId) {
@@ -297,7 +297,7 @@ const getActivityDashboard = async ({ schoolId, role, teacherId, financialYearId
   }
 
   const schoolBudgetClause =
-    role !== "super_admin" && schoolId != null
+    schoolId != null
       ? ` AND ba.school_id = $1 AND ba.is_active = TRUE`
       : ` AND ba.is_active = TRUE`;
 

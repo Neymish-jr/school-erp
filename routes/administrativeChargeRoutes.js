@@ -1,7 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../middleware/asyncHandler");
-const { authenticate, isAdminLike } = require("../middleware/auth");
+const { authenticate } = require("../middleware/auth");
+const authorize = require("../middleware/authorize");
 const { validateRequest } = require("../middleware/validation");
 const {
   administrativeChargeSchema,
@@ -17,27 +18,42 @@ const {
   updateAdministrativeChargeStatus,
 } = require("../controllers/administrativeChargeController");
 
-router.get("/", authenticate, asyncHandler(getAdministrativeCharges));
-router.get("/:id/details", authenticate, asyncHandler(getAdministrativeChargeDetails));
-router.get("/:id", authenticate, asyncHandler(getAdministrativeChargeById));
+router.get(
+  "/",
+  authenticate,
+  authorize("administration.charge.read"),
+  asyncHandler(getAdministrativeCharges)
+);
+router.get(
+  "/:id/details",
+  authenticate,
+  authorize("administration.charge.read_details"),
+  asyncHandler(getAdministrativeChargeDetails)
+);
+router.get(
+  "/:id",
+  authenticate,
+  authorize("administration.charge.read"),
+  asyncHandler(getAdministrativeChargeById)
+);
 router.post(
   "/",
   authenticate,
-  isAdminLike,
+  authorize("administration.charge.create"),
   validateRequest(administrativeChargeSchema),
   asyncHandler(createAdministrativeCharge)
 );
 router.put(
   "/:id",
   authenticate,
-  isAdminLike,
+  authorize("administration.charge.update"),
   validateRequest(administrativeChargeSchema),
   asyncHandler(updateAdministrativeCharge)
 );
 router.put(
   "/:id/status",
   authenticate,
-  isAdminLike,
+  authorize("administration.charge.activate"),
   validateRequest(administrativeChargeStatusSchema),
   asyncHandler(updateAdministrativeChargeStatus)
 );

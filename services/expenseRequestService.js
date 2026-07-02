@@ -192,7 +192,7 @@ const getExpenseRequestById = async (id, schoolId = null, userId = null, role = 
     WHERE er.id = $1
   `;
 
-  if (schoolId != null && role !== "super_admin") {
+  if (schoolId != null) {
     params.push(schoolId);
     query += ` AND er.school_id = $${params.length}`;
   }
@@ -237,7 +237,7 @@ const listExpenseRequests = async ({
     WHERE 1=1
   `;
 
-  if (role !== "super_admin" && schoolId != null) {
+  if (schoolId != null) {
     params.push(schoolId);
     query += ` AND er.school_id = $${params.length}`;
   }
@@ -282,7 +282,7 @@ const getExpenseRequestSummary = async ({ schoolId, role, userId, financialYearI
   const params = [];
   let whereClause = "WHERE 1=1";
 
-  if (role !== "super_admin" && schoolId != null) {
+  if (schoolId != null) {
     params.push(schoolId);
     whereClause += ` AND er.school_id = $${params.length}`;
   }

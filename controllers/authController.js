@@ -3,6 +3,9 @@ const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const { successResponse, errorResponse } = require("../utils/response");
 const { buildJwtPayload } = require("../utils/teacherIdentity");
+const { getEffectivePermissions } = require("../services/permissionService");
+const schoolService = require("../services/schoolService");
+const { getEffectiveSchoolId, isPlatformRole } = require("../utils/schoolContext");
 
 const registerUser = async (req, res) => {
   try {
@@ -103,7 +106,49 @@ const loginUser = async (req, res) => {
   }
 };
 
+const getMyPermissions = async (req, res) => {
+  try {
+    const effective = await getEffectivePermissions(
+      req.user.id,
+      req.user.school_id ?? null
+    );
+
+    let schoolContext = null;
+
+    if (isPlatformRole(effective.role) && req.user.school_id == null) {
+      const schools = await schoolService.listSchools();
+      const requestedSchoolId = getEffectiveSchoolId(req);
+      const matchedSchool = schools.find((school) => school.id === requestedSchoolId);
+      const activeSchoolId = matchedSchool?.id ?? schools[0]?.id ?? null;
+
+      schoolContext = {
+        schools,
+        activeSchoolId,
+      };
+    }
+
+    return successResponse(res, {
+      message: "Permissions resolved successfully",
+      data: {
+        role: effective.role,
+        permissions: [...effective.permissions],
+        administrativeCharges: effective.administrativeCharges,
+        overridesApplied: effective.overridesApplied,
+        schoolContext,
+      },
+    });
+  } catch (err) {
+    console.error(err);
+    return errorResponse(res, {
+      message: "Error resolving permissions",
+      error: err.message,
+      status: 500,
+    });
+  }
+};
+
 module.exports = {
   registerUser,
-  loginUser
+  loginUser,
+  getMyPermissions,
 };

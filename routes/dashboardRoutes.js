@@ -3,19 +3,12 @@ const router = express.Router();
 const pool = require("../db");
 const { authenticate, isAdminOrSuperAdmin } = require("../middleware/auth");
 const cashbookEntryService = require("../services/cashbookEntryService");
-
-const buildSchoolClause = (role, schoolId, params, tableAlias) => {
-  if (role !== "super_admin" && schoolId != null) {
-    params.push(schoolId);
-    return ` AND ${tableAlias}.school_id = $${params.length}`;
-  }
-
-  return "";
-};
+const { buildSchoolClause, getEffectiveSchoolId } = require("../utils/tenantScope");
 
 router.get("/", authenticate, async (req, res) => {
   try {
-    const { school_id: schoolId, role } = req.user;
+    const schoolId = getEffectiveSchoolId(req);
+    const { role } = req.user;
 
     const studentParams = [];
     const studentSchoolClause = buildSchoolClause(
@@ -111,7 +104,7 @@ router.get("/", authenticate, async (req, res) => {
 
 router.get("/finance", authenticate, isAdminOrSuperAdmin, async (req, res) => {
   try {
-    const schoolId = req.user?.school_id;
+    const schoolId = getEffectiveSchoolId(req);
     const role = req.user?.role;
     const financialYearId = req.query.financial_year_id
       ? Number(req.query.financial_year_id)

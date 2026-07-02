@@ -3,7 +3,8 @@ const router = express.Router();
 
 const {
   registerUser,
-  loginUser
+  loginUser,
+  getMyPermissions,
 } = require("../controllers/authController");
 
 const {
@@ -17,6 +18,7 @@ const {
 } = require("../middleware/auth");
 
 const loginSchema = require("../validators/loginValidator");
+const asyncHandler = require("../middleware/asyncHandler");
 
 // Only Super Admin can create users
 router.post(
@@ -32,5 +34,7 @@ router.post(
   validateRequest(loginSchema, { useTextResponse: true }),
   loginUser
 );
+
+router.get("/permissions", authenticate, asyncHandler(getMyPermissions));
 
 module.exports = router;

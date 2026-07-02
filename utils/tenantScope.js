@@ -1,7 +1,11 @@
 const { errorResponse } = require("./response");
+const {
+  getEffectiveSchoolId,
+  isPlatformRole,
+} = require("./schoolContext");
 
 const resolveSchoolIdForWrite = (req, res) => {
-  const { school_id: schoolId } = req.user || {};
+  const schoolId = getEffectiveSchoolId(req);
 
   if (schoolId == null) {
     errorResponse(res, {
@@ -16,10 +20,11 @@ const resolveSchoolIdForWrite = (req, res) => {
 };
 
 const resolveSchoolScope = (req, res) => {
-  const { school_id: schoolId, role } = req.user || {};
+  const { role } = req.user || {};
+  const schoolId = getEffectiveSchoolId(req);
 
-  if (role === "super_admin") {
-    return { schoolId: schoolId ?? null, role };
+  if (isPlatformRole(role)) {
+    return { schoolId, role };
   }
 
   if (schoolId == null) {
@@ -35,7 +40,7 @@ const resolveSchoolScope = (req, res) => {
 };
 
 const buildSchoolClause = (role, schoolId, params, tableAlias = "administrative_charges") => {
-  if (role !== "super_admin" && schoolId != null) {
+  if (schoolId != null) {
     params.push(schoolId);
     return ` AND ${tableAlias}.school_id = $${params.length}`;
   }
@@ -47,4 +52,5 @@ module.exports = {
   resolveSchoolIdForWrite,
   resolveSchoolScope,
   buildSchoolClause,
+  getEffectiveSchoolId,
 };

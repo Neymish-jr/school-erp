@@ -58,7 +58,7 @@ const buildListFilters = ({
   const params = [];
   const conditions = ["1=1"];
 
-  if (role !== "super_admin" && schoolId != null) {
+  if (schoolId != null) {
     params.push(schoolId);
     conditions.push(`ce.school_id = $${params.length}`);
   }
@@ -265,7 +265,7 @@ const getCashbookEntryById = async (id, schoolId, role) => {
     WHERE ce.id = $1
   `;
 
-  if (role !== "super_admin" && schoolId != null) {
+  if (schoolId != null) {
     params.push(schoolId);
     query += ` AND ce.school_id = $${params.length}`;
   }
@@ -412,7 +412,7 @@ const getFinanceDashboardMetrics = async (schoolId, role, financialYearId = null
       WHERE status = 'active'
     `;
 
-    if (role !== "super_admin" && schoolId != null) {
+    if (schoolId != null) {
       activeParams.push(schoolId);
       activeQuery += ` AND school_id = $${activeParams.length}`;
     }
@@ -440,7 +440,7 @@ const getFinanceDashboardMetrics = async (schoolId, role, financialYearId = null
     const fyParams = [fyId];
     let fyQuery = `SELECT year_label FROM financial_years WHERE id = $1`;
 
-    if (role !== "super_admin" && schoolId != null) {
+    if (schoolId != null) {
       fyParams.push(schoolId);
       fyQuery += ` AND school_id = $${fyParams.length}`;
     }
@@ -452,7 +452,7 @@ const getFinanceDashboardMetrics = async (schoolId, role, financialYearId = null
   const budgetParams = [fyId];
   let budgetSchoolFilter = "";
 
-  if (role !== "super_admin" && schoolId != null) {
+  if (schoolId != null) {
     budgetParams.push(schoolId);
     budgetSchoolFilter = ` AND ba.school_id = $${budgetParams.length}`;
   }
@@ -470,7 +470,7 @@ const getFinanceDashboardMetrics = async (schoolId, role, financialYearId = null
   const expenditureParams = [fyId];
   let expenditureSchoolFilter = "";
 
-  if (role !== "super_admin" && schoolId != null) {
+  if (schoolId != null) {
     expenditureParams.push(schoolId);
     expenditureSchoolFilter = ` AND ce.school_id = $${expenditureParams.length}`;
   }
@@ -490,7 +490,7 @@ const getFinanceDashboardMetrics = async (schoolId, role, financialYearId = null
   const pendingParams = [fyId];
   let pendingSchoolFilter = "";
 
-  if (role !== "super_admin" && schoolId != null) {
+  if (schoolId != null) {
     pendingParams.push(schoolId);
     pendingSchoolFilter = ` AND er.school_id = $${pendingParams.length}`;
   }
