@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { fetchChargeDetails } from "../../../api/charges";
-import { isAdminLike } from "../../../utils/auth";
+import { usePermissions } from "../../../hooks/usePermissions";
 import {
   Alert,
   Badge,
@@ -104,14 +104,16 @@ function ChargeDetailPanel({
   onClose,
   onAssignmentChange,
 }) {
+  const { can } = usePermissions();
+  const canAssignCharge = can("administration.charge_assignment.assign");
+  const canRelieveCharge = can("administration.charge_assignment.relieve");
+
   const [details, setDetails] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [isAssignOpen, setIsAssignOpen] = useState(false);
   const [isRelieveOpen, setIsRelieveOpen] = useState(false);
   const [actionMessage, setActionMessage] = useState("");
-
-  const canManageAssignments = isAdminLike();
 
   const loadDetails = useCallback(async () => {
     if (!chargeId) {
@@ -161,8 +163,8 @@ function ChargeDetailPanel({
     details?.charge?.charge_name || chargePreviewName || "School Charge";
 
   const showAssignAction =
-    canManageAssignments && details?.charge?.is_active && !details?.currentHolder;
-  const showRelieveAction = canManageAssignments && Boolean(details?.currentHolder);
+    canAssignCharge && details?.charge?.is_active && !details?.currentHolder;
+  const showRelieveAction = canRelieveCharge && Boolean(details?.currentHolder);
 
   const drawerFooter =
     !isLoading && !error && details && (showAssignAction || showRelieveAction) ? (

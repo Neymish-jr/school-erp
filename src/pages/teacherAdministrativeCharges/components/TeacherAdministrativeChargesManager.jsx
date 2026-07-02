@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import API from "../../../api/axios";
+import { usePermissions } from "../../../hooks/usePermissions";
 import { isActiveStaffTeacher } from "../../teachers/constants/teacherStatus";
 
 const getAuthHeaders = () => {
@@ -13,6 +14,10 @@ function TeacherAdministrativeChargesManager({
   embedded = false,
   onAssignmentsChange,
 }) {
+  const { can } = usePermissions();
+  const canAssignCharge = can("administration.charge_assignment.assign");
+  const canRelieveCharge = can("administration.charge_assignment.relieve");
+
   const [assignments, setAssignments] = useState([]);
   const [teachers, setTeachers] = useState([]);
   const [availableCharges, setAvailableCharges] = useState([]);
@@ -208,13 +213,15 @@ function TeacherAdministrativeChargesManager({
               Assign and track administrative responsibilities given to teachers.
             </p>
           </div>
-          <button
-            type="button"
-            onClick={openAddModal}
-            className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-4 py-3 font-semibold text-white transition hover:bg-orange-400"
-          >
-            + Assign Charge
-          </button>
+          {canAssignCharge ? (
+            <button
+              type="button"
+              onClick={openAddModal}
+              className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-4 py-3 font-semibold text-white transition hover:bg-orange-400"
+            >
+              + Assign Charge
+            </button>
+          ) : null}
         </div>
       )}
 
@@ -225,13 +232,15 @@ function TeacherAdministrativeChargesManager({
           {!embedded && (
             <h2 className="text-xl font-bold text-white">Administrative Charges</h2>
           )}
-          <button
-            type="button"
-            onClick={openAddModal}
-            className="rounded-xl bg-orange-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-orange-400"
-          >
-            + Assign Charge
-          </button>
+          {canAssignCharge ? (
+            <button
+              type="button"
+              onClick={openAddModal}
+              className="rounded-xl bg-orange-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-orange-400"
+            >
+              + Assign Charge
+            </button>
+          ) : null}
         </div>
       )}
 
@@ -315,7 +324,9 @@ function TeacherAdministrativeChargesManager({
                 {activeTab === "history" && <th className="px-4 py-3 font-semibold whitespace-nowrap">Relieved On</th>}
                 <th className="px-4 py-3 font-semibold whitespace-nowrap">Assigned By</th>
                 <th className="px-4 py-3 font-semibold whitespace-nowrap">Type</th>
-                {activeTab === "active" && <th className="px-4 py-3 font-semibold whitespace-nowrap">Actions</th>}
+                {activeTab === "active" && canRelieveCharge ? (
+                  <th className="px-4 py-3 font-semibold whitespace-nowrap">Actions</th>
+                ) : null}
               </tr>
             </thead>
             <tbody>
@@ -356,7 +367,7 @@ function TeacherAdministrativeChargesManager({
                         {a.is_additional_charge ? "Additional" : "Primary"}
                       </span>
                     </td>
-                    {activeTab === "active" && (
+                    {activeTab === "active" && canRelieveCharge ? (
                       <td className="px-4 py-4 whitespace-nowrap">
                         <button
                           type="button"
@@ -366,7 +377,7 @@ function TeacherAdministrativeChargesManager({
                           Relieve
                         </button>
                       </td>
-                    )}
+                    ) : null}
                   </tr>
                 ))
               )}

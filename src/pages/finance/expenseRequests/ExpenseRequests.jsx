@@ -17,7 +17,7 @@ import {
   updateExpenseRequest,
 } from "../../../api/finance";
 import { fetchStockConfig } from "../../../api/stock";
-import { isAdminLike, isTeacher } from "../../../utils/auth";
+import { usePermissions } from "../../../hooks/usePermissions";
 import {
   PageHeader,
   MetricGrid,
@@ -119,8 +119,14 @@ const StatusBadge = ({ status }) => {
 };
 
 function ExpenseRequests() {
-  const isTeacherUser = isTeacher();
-  const isAdmin = isAdminLike();
+  const { can } = usePermissions();
+  const canCreateRequest = can("finance.expense_request.create");
+  const canUpdateRequest = can("finance.expense_request.update");
+  const canDeleteRequest = can("finance.expense_request.delete");
+  const canSubmitRequest = can("finance.expense_request.submit");
+  const canApproveRequest = can("finance.expense_request.approve");
+  const canRejectRequest = can("finance.expense_request.reject");
+  const canMarkPaidRequest = can("finance.expense_request.mark_paid");
 
   const [financialYears, setFinancialYears] = useState([]);
   const [selectedFyId, setSelectedFyId] = useState("");
@@ -175,10 +181,10 @@ function ExpenseRequests() {
       }
     };
 
-    if (isAdmin) {
+    if (canMarkPaidRequest) {
       loadStockConfig();
     }
-  }, [isAdmin]);
+  }, [canMarkPaidRequest]);
 
   const loadReferenceData = useCallback(async () => {
     try {
@@ -449,7 +455,7 @@ function ExpenseRequests() {
           title="Expense Requests"
           description="Teachers submit expenses against budget allocations. Admin approves and records payment."
           actions={
-            isTeacherUser ? (
+            canCreateRequest ? (
               <Button variant="primary" onClick={openCreateModal}>
                 New Request
               </Button>
@@ -526,30 +532,36 @@ function ExpenseRequests() {
                       <Link to={`/finance/expense-requests/${request.id}`}>
                         <Button variant="ghost">View</Button>
                       </Link>
-                      {isTeacherUser && request.status === "draft" ? (
+                      {canUpdateRequest && request.status === "draft" ? (
                         <>
                           <Button variant="ghost" onClick={() => openEditModal(request)}>
                             Edit
                           </Button>
-                          <Button variant="secondary" onClick={() => handleSubmitRequest(request)}>
-                            Submit
-                          </Button>
-                          <Button variant="ghost" onClick={() => handleDelete(request)}>
-                            Delete
-                          </Button>
+                          {canSubmitRequest ? (
+                            <Button variant="secondary" onClick={() => handleSubmitRequest(request)}>
+                              Submit
+                            </Button>
+                          ) : null}
+                          {canDeleteRequest ? (
+                            <Button variant="ghost" onClick={() => handleDelete(request)}>
+                              Delete
+                            </Button>
+                          ) : null}
                         </>
                       ) : null}
-                      {isAdmin && request.status === "pending" ? (
+                      {canApproveRequest && request.status === "pending" ? (
                         <>
                           <Button variant="primary" onClick={() => handleApprove(request)}>
                             Approve
                           </Button>
-                          <Button variant="secondary" onClick={() => openRejectModal(request)}>
-                            Reject
-                          </Button>
+                          {canRejectRequest ? (
+                            <Button variant="secondary" onClick={() => openRejectModal(request)}>
+                              Reject
+                            </Button>
+                          ) : null}
                         </>
                       ) : null}
-                      {isAdmin && request.status === "approved" ? (
+                      {canMarkPaidRequest && request.status === "approved" ? (
                         <Button variant="primary" onClick={() => openPaidModal(request)}>
                           Mark Paid
                         </Button>

@@ -1,55 +1,80 @@
-import {
-  ADMIN_LIKE_LEGACY_ROLES,
-  LEGACY_ROLES,
-} from "../constants/roles";
+import { LEGACY_ROLES } from "../constants/roles";
 
 const navigation = [
   {
     label: "Dashboard",
     path: "/dashboard",
     icon: "mdi:view-dashboard",
+    permissions: ["dashboard.summary.read"],
   },
   {
     label: "Academics",
     icon: "mdi:school",
     children: [
-      { label: "Students", path: "/students" },
-      { label: "Classes", path: "/classes" },
-      { label: "Subjects", path: "/subjects" },
-      { label: "Attendance", path: "/attendance" },
-      { label: "Results", path: "/results" },
-      { label: "Report Cards", path: "/report-card" },
-      { label: "Timetable", path: "/timetable" },
+      { label: "Students", path: "/students", permissions: ["student.read"] },
+      { label: "Classes", path: "/classes", permissions: ["class.read"] },
+      { label: "Subjects", path: "/subjects", permissions: ["subject.read"] },
+      {
+        label: "Attendance",
+        path: "/attendance",
+        permissions: ["attendance.read", "attendance.student.read"],
+        permissionMode: "any",
+      },
+      { label: "Results", path: "/results", permissions: ["result.read"] },
+      { label: "Report Cards", path: "/report-card", permissions: ["report_card.read"] },
+      { label: "Timetable", path: "/timetable", permissions: ["timetable.read"] },
     ],
   },
   {
     label: "Staff",
     icon: "mdi:account-tie",
     children: [
-      { label: "Teachers", path: "/teachers" },
-      { label: "Teacher Subjects", path: "/teacher-subjects" },
-      { label: "Staff Posts", path: "/staff-posts" },
-      { label: "School Charges", path: "/school-charges" },
+      { label: "Teachers", path: "/teachers", permissions: ["teacher.read"] },
+      {
+        label: "Teacher Subjects",
+        path: "/teacher-subjects",
+        permissions: ["teacher_subject_assignment.read"],
+      },
+      { label: "Staff Posts", path: "/staff-posts", permissions: ["staff_post.read"] },
+      {
+        label: "School Charges",
+        path: "/school-charges",
+        permissions: ["administration.charge.read", "administration.charge_assignment.read"],
+        permissionMode: "any",
+      },
     ],
   },
   {
     label: "Finance",
     icon: "mdi:finance",
     children: [
-      { label: "Financial Years", path: "/finance/financial-years" },
+      {
+        label: "Financial Years",
+        path: "/finance/financial-years",
+        permissions: ["finance.financial_year.read"],
+      },
       {
         label: "Budget Structure",
         path: "/finance/budget-structure",
+        permissions: ["finance.budget_head.read"],
         roles: [LEGACY_ROLES.SUPER_ADMIN],
       },
-      { label: "Budget Allocations", path: "/finance/budget-allocations" },
-      { label: "Activities", path: "/activities" },
-      { label: "Expense Requests", path: "/finance/expense-requests" },
-      { label: "Quotations", path: "/quotations" },
+      {
+        label: "Budget Allocations",
+        path: "/finance/budget-allocations",
+        permissions: ["finance.budget_allocation.read"],
+      },
+      { label: "Activities", path: "/activities", permissions: ["finance.activity.read"] },
+      {
+        label: "Expense Requests",
+        path: "/finance/expense-requests",
+        permissions: ["finance.expense_request.read"],
+      },
+      { label: "Quotations", path: "/quotations", permissions: ["finance.quotation.read"] },
       {
         label: "Cashbook",
         path: "/finance/cashbook",
-        roles: [...ADMIN_LIKE_LEGACY_ROLES],
+        permissions: ["finance.cashbook.read"],
       },
     ],
   },
@@ -60,30 +85,43 @@ const navigation = [
       {
         label: "Stock Register",
         path: "/stock-register",
-        roles: [...ADMIN_LIKE_LEGACY_ROLES],
+        permissions: ["stock.register.read"],
       },
     ],
   },
   {
     label: "Help & Support",
     icon: "mdi:help-circle",
-    children: [
-      { label: "Placeholder", path: "/help-support" },
-    ],
+    children: [{ label: "Placeholder", path: "/help-support", permissions: ["dashboard.summary.read"] }],
   },
 ];
 
-export const getVisibleNavigation = (role) =>
+const itemIsVisible = (item, { canAny, canAll, role }) => {
+  if (item.roles?.length && !item.roles.includes(role)) {
+    return false;
+  }
+
+  if (!item.permissions?.length) {
+    return true;
+  }
+
+  if (item.permissionMode === "all") {
+    return canAll(item.permissions);
+  }
+
+  return canAny(item.permissions);
+};
+
+export const getVisibleNavigation = (role, canAny, canAll) =>
   navigation
     .map((group) => {
       if (!group.children) {
-        return group;
+        return itemIsVisible(group, { canAny, canAll, role }) ? group : null;
       }
 
-      const children = group.children.filter((item) => {
-        if (!item.roles?.length) return true;
-        return item.roles.includes(role);
-      });
+      const children = group.children.filter((item) =>
+        itemIsVisible(item, { canAny, canAll, role })
+      );
 
       if (children.length === 0) {
         return null;

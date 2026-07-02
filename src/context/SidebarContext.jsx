@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState } 
 import { useLocation } from "react-router-dom";
 import { getVisibleNavigation } from "../config/navigation";
 import { getAuthRole } from "../utils/auth";
+import { usePermissions } from "../hooks/usePermissions";
 
 const SIDEBAR_COLLAPSED_KEY = "sidebarCollapsed";
 const EXPANDED_SECTION_KEY = "expandedNavigationSection";
@@ -26,7 +27,11 @@ const readExpandedSection = () => {
 export function SidebarProvider({ children }) {
   const { pathname } = useLocation();
   const role = getAuthRole();
-  const navigation = useMemo(() => getVisibleNavigation(role), [role]);
+  const { canAny, canAll, loading } = usePermissions();
+  const navigation = useMemo(
+    () => (loading ? [] : getVisibleNavigation(role, canAny, canAll)),
+    [role, canAny, canAll, loading]
+  );
 
   const [isCollapsed, setIsCollapsed] = useState(readCollapsedState);
   const [expandedSection, setExpandedSection] = useState(readExpandedSection);

@@ -12,6 +12,7 @@ import {
   updateBudgetAllocation,
   updateBudgetAllocationStatus,
 } from "../../../api/finance";
+import { usePermissions } from "../../../hooks/usePermissions";
 import { isActiveStaffTeacher } from "../../teachers/constants/teacherStatus";
 import {
   PageHeader,
@@ -68,6 +69,15 @@ const StatusBadge = ({ isActive }) =>
   isActive ? <Badge variant="emerald">Active</Badge> : <Badge variant="default">Inactive</Badge>;
 
 function BudgetAllocations() {
+  const { can, canAny } = usePermissions();
+  const canCreateAllocation = can("finance.budget_allocation.create");
+  const canUpdateAllocation = can("finance.budget_allocation.update");
+  const canActivateAllocation = can("finance.budget_allocation.activate");
+  const showActionsColumn = canAny([
+    "finance.budget_allocation.update",
+    "finance.budget_allocation.activate",
+  ]);
+
   const [financialYears, setFinancialYears] = useState([]);
   const [selectedFyId, setSelectedFyId] = useState("");
   const [allocations, setAllocations] = useState([]);
@@ -311,9 +321,11 @@ function BudgetAllocations() {
           title="Budget Allocations"
           description="Allocate funds to budget sub heads for each financial year. One allocation per sub head per year."
           actions={
-            <Button variant="primary" onClick={openCreateModal} disabled={!isActiveFinancialYear}>
-              Add Allocation
-            </Button>
+            canCreateAllocation ? (
+              <Button variant="primary" onClick={openCreateModal} disabled={!isActiveFinancialYear}>
+                Add Allocation
+              </Button>
+            ) : null
           }
         />
 
@@ -366,14 +378,16 @@ function BudgetAllocations() {
               <DataTableHeaderCell>Responsible</DataTableHeaderCell>
               <DataTableHeaderCell>Remarks</DataTableHeaderCell>
               <DataTableHeaderCell>Status</DataTableHeaderCell>
-              <DataTableHeaderCell align="right">Actions</DataTableHeaderCell>
+              {showActionsColumn ? (
+                <DataTableHeaderCell align="right">Actions</DataTableHeaderCell>
+              ) : null}
             </DataTableRow>
           </DataTableHead>
           <DataTableBody>
             {loading ? (
-              <DataTableSkeleton columns={7} rows={4} />
+              <DataTableSkeleton columns={showActionsColumn ? 7 : 6} rows={4} />
             ) : allocations.length === 0 ? (
-              <DataTableEmpty colSpan={7} message="No budget allocations for this financial year." />
+              <DataTableEmpty colSpan={showActionsColumn ? 7 : 6} message="No budget allocations for this financial year." />
             ) : (
               allocations.map((allocation) => (
                 <DataTableRow key={allocation.id}>
@@ -399,24 +413,30 @@ function BudgetAllocations() {
                   <DataTableCell>
                     <StatusBadge isActive={allocation.is_active} />
                   </DataTableCell>
-                  <DataTableCell align="right">
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                      <Button
-                        variant="ghost"
-                        disabled={!allocation.is_active}
-                        onClick={() => openEditModal(allocation)}
-                      >
-                        Edit
-                      </Button>
-                      <Button
-                        variant="secondary"
-                        disabled={statusTargetId === allocation.id}
-                        onClick={() => handleToggleStatus(allocation)}
-                      >
-                        {allocation.is_active ? "Deactivate" : "Activate"}
-                      </Button>
-                    </div>
-                  </DataTableCell>
+                  {showActionsColumn ? (
+                    <DataTableCell align="right">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        {canUpdateAllocation ? (
+                          <Button
+                            variant="ghost"
+                            disabled={!allocation.is_active}
+                            onClick={() => openEditModal(allocation)}
+                          >
+                            Edit
+                          </Button>
+                        ) : null}
+                        {canActivateAllocation ? (
+                          <Button
+                            variant="secondary"
+                            disabled={statusTargetId === allocation.id}
+                            onClick={() => handleToggleStatus(allocation)}
+                          >
+                            {allocation.is_active ? "Deactivate" : "Activate"}
+                          </Button>
+                        ) : null}
+                      </div>
+                    </DataTableCell>
+                  ) : null}
                 </DataTableRow>
               ))
             )}

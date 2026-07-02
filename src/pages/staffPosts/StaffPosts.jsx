@@ -3,6 +3,7 @@ import { Icon } from "@iconify/react";
 import API from "../../api/axios";
 import { toast } from "react-toastify";
 import DashboardLayout from "../../layouts/DashboardLayout";
+import { usePermissions } from "../../hooks/usePermissions";
 import {
   PageHeader,
   MetricGrid,
@@ -33,6 +34,7 @@ import {
   VacancyCell,
   erp,
 } from "../../design-system";
+import Permission from "../../components/Permission";
 
 const STAFF_POSTS_PAGE_LIMIT = 1000;
 const CLIENT_PAGE_SIZE = 10;
@@ -129,6 +131,12 @@ const fetchAllStaffPosts = async (search, filterCategory) => {
 };
 
 const StaffPosts = () => {
+  const { can, canAny } = usePermissions();
+  const canCreatePost = can("staff_post.create");
+  const canUpdatePost = can("staff_post.update");
+  const canDeletePost = can("staff_post.delete");
+  const showActionsColumn = canAny(["staff_post.update", "staff_post.delete"]);
+
   const [staffPosts, setStaffPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -307,10 +315,12 @@ const StaffPosts = () => {
           title="Staff Posts"
           description="Manage sanctioned designations, track filled and vacant positions, and maintain government staffing records."
           actions={
-            <Button onClick={openCreateModal}>
-              <Icon icon="mdi:briefcase-plus-outline" className="h-4 w-4" />
-              Add Staff Post
-            </Button>
+            canCreatePost ? (
+              <Button onClick={openCreateModal}>
+                <Icon icon="mdi:briefcase-plus-outline" className="h-4 w-4" />
+                Add Staff Post
+              </Button>
+            ) : null
           }
         />
 
@@ -397,16 +407,18 @@ const StaffPosts = () => {
               <DataTableHeaderCell align="center" width="10%">
                 Vacant
               </DataTableHeaderCell>
-              <DataTableHeaderCell align="center" width="5%">
-                Actions
-              </DataTableHeaderCell>
+              {showActionsColumn ? (
+                <DataTableHeaderCell align="center" width="5%">
+                  Actions
+                </DataTableHeaderCell>
+              ) : null}
             </DataTableRow>
           </DataTableHead>
           <DataTableBody>
             {loading ? (
-              <DataTableSkeleton rows={6} cols={8} />
+              <DataTableSkeleton rows={6} cols={showActionsColumn ? 8 : 7} />
             ) : visiblePosts.length === 0 ? (
-              <DataTableEmpty colSpan={8} message="No staff posts found." />
+              <DataTableEmpty colSpan={showActionsColumn ? 8 : 7} message="No staff posts found." />
             ) : (
               visiblePosts.map((post) => (
                 <DataTableRow key={post.id}>
@@ -445,24 +457,30 @@ const StaffPosts = () => {
                       unavailable={Boolean(assignmentsWarning)}
                     />
                   </DataTableCell>
-                  <DataTableCell align="center" width="5%" centerContent>
-                    <Button
-                      variant="ghost"
-                      onClick={() => openEditModal(post)}
-                      aria-label={`Edit ${post.post_name}`}
-                      className="!p-2"
-                    >
-                      <Icon icon="mdi:pencil-outline" className="h-4 w-4" />
-                    </Button>
-                    <Button
-                      variant="danger"
-                      onClick={() => handleDelete(post.id)}
-                      aria-label={`Delete ${post.post_name}`}
-                      className="!p-2"
-                    >
-                      <Icon icon="mdi:delete-outline" className="h-4 w-4" />
-                    </Button>
-                  </DataTableCell>
+                  {showActionsColumn ? (
+                    <DataTableCell align="center" width="5%" centerContent>
+                      {canUpdatePost ? (
+                        <Button
+                          variant="ghost"
+                          onClick={() => openEditModal(post)}
+                          aria-label={`Edit ${post.post_name}`}
+                          className="!p-2"
+                        >
+                          <Icon icon="mdi:pencil-outline" className="h-4 w-4" />
+                        </Button>
+                      ) : null}
+                      {canDeletePost ? (
+                        <Button
+                          variant="danger"
+                          onClick={() => handleDelete(post.id)}
+                          aria-label={`Delete ${post.post_name}`}
+                          className="!p-2"
+                        >
+                          <Icon icon="mdi:delete-outline" className="h-4 w-4" />
+                        </Button>
+                      ) : null}
+                    </DataTableCell>
+                  ) : null}
                 </DataTableRow>
               ))
             )}

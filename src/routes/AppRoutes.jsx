@@ -1,9 +1,9 @@
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
+import { PermissionProvider } from "../context/PermissionContext";
 
 import Login from "../pages/auth/Login";
 import Dashboard from "../pages/dashboard/Dashboard";
-import ProtectedRoute from "./ProtectedRoute.jsx";
-import SuperAdminRoute from "./SuperAdminRoute.jsx";
+import ProtectedPermissionRoute from "./ProtectedPermissionRoute.jsx";
 import Students from "../pages/students/Students";
 import Classes from "../pages/classes/Classes";
 import Teachers from "../pages/teachers/Teachers";
@@ -26,268 +26,66 @@ import Cashbook from "../pages/finance/cashbook/Cashbook";
 import Activities from "../pages/activities/Activities";
 import ActivityDetail from "../pages/activities/ActivityDetail";
 import StockRegister from "../pages/stockRegister/StockRegister";
-import AdminOrSuperAdminRoute from "./AdminOrSuperAdminRoute.jsx";
 import Quotations from "../pages/quotations/Quotations";
+import Unauthorized from "../pages/unauthorized/Unauthorized";
+
+const guard = (page) => <ProtectedPermissionRoute>{page}</ProtectedPermissionRoute>;
 
 function AppRoutes() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Login />} />
+      <PermissionProvider>
+        <Routes>
+          <Route path="/" element={<Login />} />
 
-        <Route
-          path="/dashboard"
-          element={
-            <ProtectedRoute>
-              <Dashboard />
-            </ProtectedRoute>
-          }
-        />
+          <Route path="/unauthorized" element={guard(<Unauthorized />)} />
 
-        <Route
-          path="/students"
-          element={
-            <ProtectedRoute>
-              <Students />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/classes"
-          element={
-            <ProtectedRoute>
-              <Classes />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/teachers"
-          element={
-            <ProtectedRoute>
-              <Teachers />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/teachers/:id"
-          element={
-            <ProtectedRoute>
-              <TeacherProfile />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/subjects"
-          element={
-            <ProtectedRoute>
-              <Subjects />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/teacher-subjects"
-          element={
-            <ProtectedRoute>
-              <TeacherAssignments />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/attendance"
-          element={
-            <ProtectedRoute>
-              <Attendance />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/results"
-          element={
-            <ProtectedRoute>
-              <Results />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/report-card"
-          element={
-            <ProtectedRoute>
-              <ReportCard />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/timetable"
-          element={
-            <ProtectedRoute>
-              <Timetable />
-            </ProtectedRoute>
-          }
-        />
+          <Route path="/dashboard" element={guard(<Dashboard />)} />
+          <Route path="/students" element={guard(<Students />)} />
+          <Route path="/classes" element={guard(<Classes />)} />
+          <Route path="/teachers" element={guard(<Teachers />)} />
+          <Route path="/teachers/:id" element={guard(<TeacherProfile />)} />
+          <Route path="/subjects" element={guard(<Subjects />)} />
+          <Route path="/teacher-subjects" element={guard(<TeacherAssignments />)} />
+          <Route path="/attendance" element={guard(<Attendance />)} />
+          <Route path="/results" element={guard(<Results />)} />
+          <Route path="/report-card" element={guard(<ReportCard />)} />
+          <Route path="/timetable" element={guard(<Timetable />)} />
 
-        <Route
-          path="/staff-posts"
-          element={
-            <ProtectedRoute>
-              <StaffPosts />
-            </ProtectedRoute>
-          }
-        />
+          <Route path="/staff-posts" element={guard(<StaffPosts />)} />
+          <Route path="/school-charges" element={guard(<SchoolCharges />)} />
 
-        <Route
-          path="/school-charges"
-          element={
-            <ProtectedRoute>
-              <SchoolCharges />
-            </ProtectedRoute>
-          }
-        />
+          <Route
+            path="/administrative-charges"
+            element={<Navigate to="/school-charges?tab=catalog" replace />}
+          />
+          <Route
+            path="/teacher-administrative-charges"
+            element={<Navigate to="/school-charges?tab=assignments" replace />}
+          />
 
-        <Route
-          path="/administrative-charges"
-          element={
-            <Navigate to="/school-charges?tab=catalog" replace />
-          }
-        />
-
-        <Route
-          path="/teacher-administrative-charges"
-          element={
-            <Navigate to="/school-charges?tab=assignments" replace />
-          }
-        />
-
-        <Route
-          path="/finance/financial-years"
-          element={
-            <ProtectedRoute>
-              <FinancialYears />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/finance/budget-structure"
-          element={
-            <ProtectedRoute>
-              <SuperAdminRoute>
-                <BudgetStructure />
-              </SuperAdminRoute>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/finance/budget-heads"
-          element={
-            <ProtectedRoute>
-              <SuperAdminRoute>
-                <BudgetStructure />
-              </SuperAdminRoute>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/finance/budget-allocations"
-          element={
-            <ProtectedRoute>
-              <BudgetAllocations />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/finance/expense-requests"
-          element={
-            <ProtectedRoute>
-              <ExpenseRequests />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/finance/expense-requests/:id"
-          element={
-            <ProtectedRoute>
-              <ExpenseRequestDetail />
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/finance/cashbook"
-          element={
-            <ProtectedRoute>
-              <AdminOrSuperAdminRoute>
-                <Cashbook />
-              </AdminOrSuperAdminRoute>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/cashbook"
-          element={
-            <ProtectedRoute>
-              <AdminOrSuperAdminRoute>
-                <Cashbook />
-              </AdminOrSuperAdminRoute>
-            </ProtectedRoute>
-          }
-        />
-
-        <Route
-          path="/expenses"
-          element={
-            <ProtectedRoute>
-              <ComingSoon />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/stock-register"
-          element={
-            <ProtectedRoute>
-              <AdminOrSuperAdminRoute>
-                <StockRegister />
-              </AdminOrSuperAdminRoute>
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/quotations"
-          element={
-            <ProtectedRoute>
-              <Quotations />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/activities"
-          element={
-            <ProtectedRoute>
-              <Activities />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/activities/:id"
-          element={
-            <ProtectedRoute>
-              <ActivityDetail />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/help-support"
-          element={
-            <ProtectedRoute>
-              <div>Help & Support Section</div>
-            </ProtectedRoute>
-          }
-        />
-      </Routes>
+          <Route path="/finance/financial-years" element={guard(<FinancialYears />)} />
+          <Route path="/finance/budget-structure" element={guard(<BudgetStructure />)} />
+          <Route path="/finance/budget-heads" element={guard(<BudgetStructure />)} />
+          <Route path="/finance/budget-allocations" element={guard(<BudgetAllocations />)} />
+          <Route path="/finance/expense-requests" element={guard(<ExpenseRequests />)} />
+          <Route
+            path="/finance/expense-requests/:id"
+            element={guard(<ExpenseRequestDetail />)}
+          />
+          <Route path="/finance/cashbook" element={guard(<Cashbook />)} />
+          <Route path="/cashbook" element={guard(<Cashbook />)} />
+          <Route path="/expenses" element={guard(<ComingSoon />)} />
+          <Route path="/stock-register" element={guard(<StockRegister />)} />
+          <Route path="/quotations" element={guard(<Quotations />)} />
+          <Route path="/activities" element={guard(<Activities />)} />
+          <Route path="/activities/:id" element={guard(<ActivityDetail />)} />
+          <Route
+            path="/help-support"
+            element={guard(<div>Help & Support Section</div>)}
+          />
+        </Routes>
+      </PermissionProvider>
     </BrowserRouter>
   );
 }

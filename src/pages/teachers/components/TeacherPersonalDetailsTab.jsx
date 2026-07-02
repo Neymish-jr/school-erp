@@ -1,5 +1,6 @@
 import { useState } from "react";
 import API from "../../../api/axios";
+import Permission from "../../../components/Permission";
 import {
   TEACHER_STATUS_OPTIONS,
   TeacherStatusSelect,
@@ -234,13 +235,15 @@ function TeacherPersonalDetailsTab({ teacher, onTeacherUpdate }) {
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-bold text-white">Personal Details</h3>
         {!isEditing && (
-          <button
-            type="button"
-            onClick={handleEdit}
-            className="rounded-xl bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-300"
-          >
-            Edit Details
-          </button>
+          <Permission permission="teacher.update">
+            <button
+              type="button"
+              onClick={handleEdit}
+              className="rounded-xl bg-amber-400 px-4 py-2 text-sm font-semibold text-slate-950 transition hover:bg-amber-300"
+            >
+              Edit Details
+            </button>
+          </Permission>
         )}
       </div>
 

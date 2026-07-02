@@ -8,7 +8,7 @@ import {
   fetchQuotationComparison,
   selectQuotation,
 } from "../../../api/quotations";
-import { decodeAuthToken, isAdminLike, isTeacher } from "../../../utils/auth";
+import { usePermissions } from "../../../hooks/usePermissions";
 import {
   PageHeader,
   Button,
@@ -84,8 +84,11 @@ const emptyQuotationForm = {
 
 function ExpenseRequestDetail() {
   const { id } = useParams();
-  const canApprove = isAdminLike();
-  const isTeacherUser = isTeacher();
+  const { can, role, user } = usePermissions();
+  const canApprove = can("finance.expense_request.approve");
+  const canCreateQuotation = can("finance.quotation.create");
+  const isTeacherUser = role === "teacher";
+  const authUserId = user?.id;
 
   const [request, setRequest] = useState(null);
   const [comparison, setComparison] = useState(null);
@@ -120,12 +123,10 @@ function ExpenseRequestDetail() {
     loadRequest();
   }, [id]);
 
-  const authUserId = decodeAuthToken().id;
-
   const canUpload =
     request &&
     ["draft", "pending"].includes(request.status) &&
-    (canApprove ||
+    (canCreateQuotation ||
       (isTeacherUser && Number(request.created_by_user_id) === Number(authUserId)));
 
   const canSelect = request?.status === "pending" && canApprove;

@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import API from "../../api/axios";
+import { usePermissions } from "../../hooks/usePermissions";
 
 function Login() {
   const navigate = useNavigate();
+  const { reloadPermissions } = usePermissions();
 
   const [formData, setFormData] = useState({
     email: "",
@@ -23,6 +25,7 @@ function Login() {
       console.log(res.data);
 
       localStorage.setItem("token", res.data.data.token);
+      await reloadPermissions();
 
       alert("Login Successful");
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import API from "../../../api/axios";
 import { fetchCharges } from "../../../api/charges";
+import { usePermissions } from "../../../hooks/usePermissions";
 import ChargeDetailPanel from "./ChargeDetailPanel";
 
 const emptyForm = {
@@ -32,6 +33,15 @@ const getAuthHeaders = () => {
 };
 
 function ChargeCatalogPanel({ embedded = false }) {
+  const { can, canAny } = usePermissions();
+  const canCreateCharge = can("administration.charge.create");
+  const canUpdateCharge = can("administration.charge.update");
+  const canActivateCharge = can("administration.charge.activate");
+  const showActionsColumn = canAny([
+    "administration.charge.update",
+    "administration.charge.activate",
+  ]);
+
   const [charges, setCharges] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -237,23 +247,27 @@ function ChargeCatalogPanel({ embedded = false }) {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={openAddModal}
-            className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-4 py-3 font-semibold text-white transition hover:bg-orange-400"
-          >
-            + Add Charge
-          </button>
+          {canCreateCharge ? (
+            <button
+              type="button"
+              onClick={openAddModal}
+              className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-4 py-3 font-semibold text-white transition hover:bg-orange-400"
+            >
+              + Add Charge
+            </button>
+          ) : null}
         </div>
       ) : (
         <div className="flex justify-end">
-          <button
-            type="button"
-            onClick={openAddModal}
-            className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-4 py-3 font-semibold text-white transition hover:bg-orange-400"
-          >
-            + Add Charge
-          </button>
+          {canCreateCharge ? (
+            <button
+              type="button"
+              onClick={openAddModal}
+              className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-4 py-3 font-semibold text-white transition hover:bg-orange-400"
+            >
+              + Add Charge
+            </button>
+          ) : null}
         </div>
       )}
 
@@ -332,7 +346,9 @@ function ChargeCatalogPanel({ embedded = false }) {
                 <th className="px-4 py-3 font-semibold">Description</th>
                 <th className="px-4 py-3 font-semibold">Status</th>
                 <th className="px-4 py-3 font-semibold">Created At</th>
-                <th className="px-4 py-3 font-semibold">Actions</th>
+                {showActionsColumn ? (
+                  <th className="px-4 py-3 font-semibold">Actions</th>
+                ) : null}
               </tr>
             </thead>
             <tbody>
@@ -348,7 +364,7 @@ function ChargeCatalogPanel({ embedded = false }) {
                 ))
               ) : charges.length === 0 ? (
                 <tr className="border-t border-slate-800">
-                  <td colSpan="6" className="px-4 py-10 text-center text-slate-300">
+                  <td colSpan={showActionsColumn ? 6 : 5} className="px-4 py-10 text-center text-slate-300">
                     No administrative charges found.
                   </td>
                 </tr>
@@ -392,28 +408,34 @@ function ChargeCatalogPanel({ embedded = false }) {
                         ? new Date(charge.created_at).toLocaleString()
                         : "-"}
                     </td>
-                    <td className="px-4 py-4">
-                      <div className="flex flex-wrap gap-2" onClick={(event) => event.stopPropagation()}>
-                        <button
-                          type="button"
-                          onClick={() => openEditModal(charge)}
-                          className="rounded-xl bg-amber-400 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-300"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setStatusTarget(charge)}
-                          className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition ${
-                            charge.is_active
-                              ? "bg-rose-500 text-white hover:bg-rose-400"
-                              : "bg-emerald-500 text-slate-950 hover:bg-emerald-400"
-                          }`}
-                        >
-                          {charge.is_active ? "Deactivate" : "Activate"}
-                        </button>
-                      </div>
-                    </td>
+                    {showActionsColumn ? (
+                      <td className="px-4 py-4">
+                        <div className="flex flex-wrap gap-2" onClick={(event) => event.stopPropagation()}>
+                          {canUpdateCharge ? (
+                            <button
+                              type="button"
+                              onClick={() => openEditModal(charge)}
+                              className="rounded-xl bg-amber-400 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-300"
+                            >
+                              Edit
+                            </button>
+                          ) : null}
+                          {canActivateCharge ? (
+                            <button
+                              type="button"
+                              onClick={() => setStatusTarget(charge)}
+                              className={`rounded-xl px-3 py-1.5 text-sm font-semibold transition ${
+                                charge.is_active
+                                  ? "bg-rose-500 text-white hover:bg-rose-400"
+                                  : "bg-emerald-500 text-slate-950 hover:bg-emerald-400"
+                              }`}
+                            >
+                              {charge.is_active ? "Deactivate" : "Activate"}
+                            </button>
+                          ) : null}
+                        </div>
+                      </td>
+                    ) : null}
                   </tr>
                 ))
               )}

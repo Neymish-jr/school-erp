@@ -13,7 +13,7 @@ import {
 } from "../../api/activities";
 import { fetchBudgetAllocations, fetchFinancialYears } from "../../api/finance";
 import API from "../../api/axios";
-import { isAdminLike, isTeacher } from "../../utils/auth";
+import { usePermissions } from "../../hooks/usePermissions";
 import { isActiveStaffTeacher } from "../teachers/constants/teacherStatus";
 import {
   PageHeader,
@@ -96,8 +96,10 @@ const StatusBadge = ({ status }) => {
 };
 
 function Activities() {
-  const isTeacherUser = isTeacher();
-  const canApprove = isAdminLike();
+  const { can, role } = usePermissions();
+  const canCreateActivity = can("finance.activity.create");
+  const canApproveActivity = can("finance.activity.approve");
+  const isTeacherUser = role === "teacher";
 
   const [financialYears, setFinancialYears] = useState([]);
   const [selectedFyId, setSelectedFyId] = useState("");
@@ -313,9 +315,11 @@ function Activities() {
         title="Activities"
         description="Plan school activities, submit for principal approval, and track budget utilization."
         actions={
-          <Button type="button" onClick={openCreateModal}>
-            New Activity
-          </Button>
+          canCreateActivity ? (
+            <Button type="button" onClick={openCreateModal}>
+              New Activity
+            </Button>
+          ) : null
         }
       />
 
@@ -343,7 +347,23 @@ function Activities() {
       </FilterToolbar>
 
       {loading ? (
-        <DataTableSkeleton columns={COLUMN_WIDTHS.length} />
+        <DataTable>
+          <DataTableColGroup widths={COLUMN_WIDTHS} />
+          <DataTableHead>
+            <DataTableRow>
+              <DataTableHeaderCell>Activity</DataTableHeaderCell>
+              <DataTableHeaderCell>Teacher</DataTableHeaderCell>
+              <DataTableHeaderCell>Budget</DataTableHeaderCell>
+              <DataTableHeaderCell>Budget Head</DataTableHeaderCell>
+              <DataTableHeaderCell>Status</DataTableHeaderCell>
+              <DataTableHeaderCell>Submitted</DataTableHeaderCell>
+              <DataTableHeaderCell>Actions</DataTableHeaderCell>
+            </DataTableRow>
+          </DataTableHead>
+          <DataTableBody>
+            <DataTableSkeleton columns={COLUMN_WIDTHS.length} />
+          </DataTableBody>
+        </DataTable>
       ) : (
         <DataTable>
           <DataTableColGroup widths={COLUMN_WIDTHS} />
@@ -395,7 +415,7 @@ function Activities() {
                           Submit
                         </Button>
                       ) : null}
-                      {canApprove && activity.status === "submitted" ? (
+                      {canApproveActivity && activity.status === "submitted" ? (
                         <>
                           <Button
                             type="button"

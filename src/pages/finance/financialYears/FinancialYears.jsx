@@ -8,6 +8,7 @@ import {
   fetchFinancialYears,
   updateFinancialYear,
 } from "../../../api/finance";
+import { usePermissions } from "../../../hooks/usePermissions";
 import {
   PageHeader,
   MetricGrid,
@@ -80,6 +81,17 @@ const StatusBadge = ({ status }) => {
 };
 
 function FinancialYears() {
+  const { can, canAny } = usePermissions();
+  const canCreateYear = can("finance.financial_year.create");
+  const canUpdateYear = can("finance.financial_year.update");
+  const canActivateYear = can("finance.financial_year.activate");
+  const canCloseYear = can("finance.financial_year.close");
+  const showActionsColumn = canAny([
+    "finance.financial_year.update",
+    "finance.financial_year.activate",
+    "finance.financial_year.close",
+  ]);
+
   const [financialYears, setFinancialYears] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -233,9 +245,11 @@ function FinancialYears() {
           title="Financial Years"
           description="Manage Indian government financial years (01 April – 31 March). Dates are system-generated from the year label."
           actions={
-            <Button variant="primary" onClick={openCreateModal}>
-              Add Financial Year
-            </Button>
+            canCreateYear ? (
+              <Button variant="primary" onClick={openCreateModal}>
+                Add Financial Year
+              </Button>
+            ) : null
           }
         />
 
@@ -268,14 +282,16 @@ function FinancialYears() {
               <DataTableHeaderCell>Period</DataTableHeaderCell>
               <DataTableHeaderCell>Status</DataTableHeaderCell>
               <DataTableHeaderCell>Remarks</DataTableHeaderCell>
-              <DataTableHeaderCell align="right">Actions</DataTableHeaderCell>
+              {showActionsColumn ? (
+                <DataTableHeaderCell align="right">Actions</DataTableHeaderCell>
+              ) : null}
             </DataTableRow>
           </DataTableHead>
           <DataTableBody>
             {loading ? (
-              <DataTableSkeleton columns={5} rows={4} />
+              <DataTableSkeleton columns={showActionsColumn ? 5 : 4} rows={4} />
             ) : sortedFinancialYears.length === 0 ? (
-              <DataTableEmpty colSpan={5} message="No financial years found." />
+              <DataTableEmpty colSpan={showActionsColumn ? 5 : 4} message="No financial years found." />
             ) : (
               sortedFinancialYears.map((year) => (
                 <DataTableRow key={year.id}>
@@ -289,30 +305,35 @@ function FinancialYears() {
                   <DataTableCell>
                     <span className="text-slate-300">{year.remarks || "—"}</span>
                   </DataTableCell>
-                  <DataTableCell align="right">
-                    <div className="flex flex-wrap items-center justify-end gap-2">
-                      <Button variant="ghost" onClick={() => openEditModal(year)}>
-                        Edit
-                      </Button>
-                      {year.status === "closed" ? (
-                        <Button
-                          variant="secondary"
-                          disabled={actionTargetId === year.id}
-                          onClick={() => handleActivate(year)}
-                        >
-                          Activate
-                        </Button>
-                      ) : (
-                        <Button
-                          variant="secondary"
-                          disabled={actionTargetId === year.id}
-                          onClick={() => handleClose(year)}
-                        >
-                          Close
-                        </Button>
-                      )}
-                    </div>
-                  </DataTableCell>
+                  {showActionsColumn ? (
+                    <DataTableCell align="right">
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        {canUpdateYear ? (
+                          <Button variant="ghost" onClick={() => openEditModal(year)}>
+                            Edit
+                          </Button>
+                        ) : null}
+                        {year.status === "closed" && canActivateYear ? (
+                          <Button
+                            variant="secondary"
+                            disabled={actionTargetId === year.id}
+                            onClick={() => handleActivate(year)}
+                          >
+                            Activate
+                          </Button>
+                        ) : null}
+                        {year.status !== "closed" && canCloseYear ? (
+                          <Button
+                            variant="secondary"
+                            disabled={actionTargetId === year.id}
+                            onClick={() => handleClose(year)}
+                          >
+                            Close
+                          </Button>
+                        ) : null}
+                      </div>
+                    </DataTableCell>
+                  ) : null}
                 </DataTableRow>
               ))
             )}

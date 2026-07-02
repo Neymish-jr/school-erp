@@ -10,7 +10,7 @@ import {
   rejectActivity,
   submitActivity,
 } from "../../api/activities";
-import { isAdminLike } from "../../utils/auth";
+import { usePermissions } from "../../hooks/usePermissions";
 import {
   PageHeader,
   MetricGrid,
@@ -79,7 +79,8 @@ const StatusBadge = ({ status }) => {
 
 function ActivityDetail() {
   const { id } = useParams();
-  const canApprove = isAdminLike();
+  const { can } = usePermissions();
+  const canApproveActivity = can("finance.activity.approve");
 
   const [activity, setActivity] = useState(null);
   const [timeline, setTimeline] = useState(null);
@@ -188,7 +189,7 @@ function ActivityDetail() {
                 Submit
               </Button>
             ) : null}
-            {canApprove && activity.status === "submitted" ? (
+            {canApproveActivity && activity.status === "submitted" ? (
               <>
                 <Button
                   type="button"

@@ -33,6 +33,7 @@ import {
   StaffDirectoryFooter,
   erp,
 } from "../../design-system";
+import Permission from "../../components/Permission";
 
 const PAGE_SIZE = 10;
 const STORAGE_KEY = "school-erp-teacher-meta";
@@ -378,10 +379,12 @@ function Teachers() {
           title="Staff Directory"
           description="Browse school employees and designations. Update employment status from each staff profile."
           actions={
-            <Button onClick={openAddModal}>
-              <Icon icon="mdi:account-plus-outline" className="h-4 w-4" />
-              Add Teacher
-            </Button>
+            <Permission permission="teacher.create">
+              <Button onClick={openAddModal}>
+                <Icon icon="mdi:account-plus-outline" className="h-4 w-4" />
+                Add Teacher
+              </Button>
+            </Permission>
           }
         />
 
