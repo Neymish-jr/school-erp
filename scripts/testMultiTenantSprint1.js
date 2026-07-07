@@ -74,8 +74,17 @@ const run = async () => {
     "attendanceController must verify student belongs to school"
   );
   assert(
-    attendanceController.includes('role !== "super_admin"'),
-    "attendanceController must include super_admin bypass"
+    attendanceController.includes("resolveSchoolScope"),
+    "attendanceController must use resolveSchoolScope for tenant reads/writes"
+  );
+  assert(
+    attendanceController.includes("verifyTeacherCanAccessStudent"),
+    "attendanceController must enforce assigned-class scope for teachers"
+  );
+  assert(
+    attendanceController.includes("bulkSubmitAttendance") ||
+      attendanceController.includes('client.query("BEGIN")'),
+    "attendanceController must support transactional bulk submit"
   );
   console.log("✓ Attendance module hardened");
 

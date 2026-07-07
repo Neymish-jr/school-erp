@@ -1,28 +1,10 @@
 const XLSX = require("xlsx");
 const pool = require("../db");
-
-const buildSchoolClause = (role, schoolId, params, tableAlias = "students") => {
-  if (role !== "super_admin" && schoolId != null) {
-    params.push(schoolId);
-    return ` AND ${tableAlias}.school_id = $${params.length}`;
-  }
-
-  return "";
-};
-
-const resolveSchoolIdForWrite = (req, res) => {
-  const { school_id: schoolId } = req.user;
-
-  if (schoolId == null) {
-    res.status(400).json({
-      success: false,
-      message: "School context is required for this operation",
-    });
-    return null;
-  }
-
-  return schoolId;
-};
+const {
+  buildSchoolClause,
+  resolveSchoolIdForWrite,
+  resolveSchoolScope,
+} = require("../utils/tenantScope");
 
 const importStudents = async (req, res) => {
   try {
@@ -71,7 +53,7 @@ const importStudents = async (req, res) => {
         [
           student["Name"],
           student["Gender"],
-          student["Social Category"] || "General",
+          student["Social Category"] || student["Category"] || "General",
           student["Class"],
           student["Section"],
           schoolId,
@@ -127,21 +109,26 @@ const downloadTemplate = async (req, res) => {
 };
 
 const exportStudents = async (req, res) => {
-  const { school_id: schoolId, role } = req.user;
+  const scope = resolveSchoolScope(req, res);
+  if (!scope) {
+    return;
+  }
+
   const params = [];
-  const schoolClause = buildSchoolClause(role, schoolId, params);
+  const schoolClause = buildSchoolClause(scope.role, scope.schoolId, params, "students");
 
   const result = await pool.query(
     `
     SELECT
-      name,
-      gender,
-      category,
-      student_class,
-      section
+      name AS "Name",
+      gender AS "Gender",
+      category AS "Category",
+      student_class AS "Class",
+      section AS "Section"
     FROM students
     WHERE is_active = true
     ${schoolClause}
+    ORDER BY name ASC
     `,
     params
   );

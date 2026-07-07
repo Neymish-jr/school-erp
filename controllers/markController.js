@@ -1,15 +1,10 @@
 const pool = require("../db");
 const markSchema = require("../validators/markValidator");
 const { successResponse, errorResponse } = require("../utils/response");
-
-const buildSchoolClause = (role, schoolId, params, tableAlias = "students") => {
-  if (role !== "super_admin" && schoolId != null) {
-    params.push(schoolId);
-    return ` AND ${tableAlias}.school_id = $${params.length}`;
-  }
-
-  return "";
-};
+const {
+  buildSchoolClause,
+  resolveSchoolScope,
+} = require("../utils/tenantScope");
 
 const verifyStudentInSchool = async (studentId, role, schoolId) => {
   const params = [studentId];
@@ -37,7 +32,11 @@ if (error) {
   return errorResponse(res, { message: error.details[0].message, error: error.details[0].message, status: 400 });
 }
   try {
-    const { school_id: schoolId, role } = req.user;
+    const scope = resolveSchoolScope(req, res);
+    if (!scope) {
+      return;
+    }
+    const { schoolId, role } = scope;
     const {
       student_id,
       subject_id,
@@ -99,7 +98,11 @@ if (error) {
 const getMarks = async (req, res) => {
 
   try {
-    const { school_id: schoolId, role } = req.user;
+    const scope = resolveSchoolScope(req, res);
+    if (!scope) {
+      return;
+    }
+    const { schoolId, role } = scope;
     const params = [];
     const schoolClause = buildSchoolClause(role, schoolId, params, "students");
 

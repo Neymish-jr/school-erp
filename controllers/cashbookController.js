@@ -1,37 +1,55 @@
-const pool = require("../db");
+const cashbookEntryService = require("../services/cashbookEntryService");
+const { LEGACY_CASHBOOK_MAX_ROWS } = require("../constants/cashbookEntry");
 const { successResponse, errorResponse } = require("../utils/response");
+const { resolveSchoolScope } = require("../utils/tenantScope");
 
-// GET CASHBOOK
+/**
+ * @deprecated Use GET /api/finance/cashbook instead.
+ * Delegates to Cashbook V2 with tenant scoping (no global legacy expenses query).
+ */
 const getCashbook = async (req, res) => {
   try {
-    const result = await pool.query(
-      `
-      SELECT
-        payment_date,
-        voucher_no,
-        item_name,
-        amount,
-        vendor_name,
-        transaction_id
+    const scope = resolveSchoolScope(req, res);
+    if (!scope) {
+      return;
+    }
 
-      FROM expenses
+    const result = await cashbookEntryService.listCashbookEntries({
+      schoolId: scope.schoolId,
+      role: scope.role,
+      page: 1,
+      limit: LEGACY_CASHBOOK_MAX_ROWS,
+    });
 
-      WHERE status = 'Paid'
+    const data = result.data.map((row) => ({
+      payment_date: row.entry_date,
+      voucher_no: row.voucher_no,
+      item_name: row.description,
+      amount: row.amount,
+      vendor_name: row.vendor_name,
+      transaction_id: row.transaction_id,
+    }));
 
-      ORDER BY payment_date ASC
-      `
-    );
+    res.setHeader("Deprecation", "true");
+    res.setHeader("Link", '</api/finance/cashbook>; rel="successor-version"');
 
-    return successResponse(res, { data: result.rows });
-
+    return successResponse(res, {
+      message:
+        "Legacy cashbook endpoint is deprecated. Use GET /api/finance/cashbook for school-scoped ledger data.",
+      data,
+      deprecated: true,
+      pagination: result.pagination,
+    });
   } catch (err) {
-
     console.error(err);
-    return errorResponse(res, { message: "Error fetching cashbook", error: err.message, status: 500 });
-
+    return errorResponse(res, {
+      message: "Error fetching cashbook",
+      error: err.message,
+      status: err.statusCode || 500,
+    });
   }
 };
 
 module.exports = {
-  getCashbook
+  getCashbook,
 };

@@ -7,16 +7,22 @@ const {
   createStudentResult,
   getStudentResults,
 } = require("../controllers/studentResultsController");
-const { authenticate, isTeacherOrAdminLike } = require("../middleware/auth");
+const { authenticate } = require("../middleware/auth");
+const authorize = require("../middleware/authorize");
 
 router.post(
   "/",
   authenticate,
-  isTeacherOrAdminLike,
+  authorize("result.create"),
   validateRequest(studentResultsSchema),
   asyncHandler(createStudentResult)
 );
 
-router.get("/", authenticate, isTeacherOrAdminLike, asyncHandler(getStudentResults));
+router.get(
+  "/",
+  authenticate,
+  authorize("result.read"),
+  asyncHandler(getStudentResults)
+);
 
 module.exports = router;

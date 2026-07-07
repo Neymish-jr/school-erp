@@ -1,5 +1,5 @@
 /**
- * Verify Student Module Hardening Sprint changes.
+ * Verify Student Module RBAC + tenant consistency (RC Sprint 2).
  * Usage: node backend/scripts/testStudentsHardening.js
  */
 
@@ -7,30 +7,10 @@ require("dotenv").config({ path: require("path").join(__dirname, "..", ".env") }
 
 const fs = require("fs");
 const path = require("path");
-const { isAdminLike } = require("../middleware/auth");
 
 const assert = (condition, message) => {
   if (!condition) throw new Error(message);
 };
-
-const runMiddleware = (middleware, role) =>
-  new Promise((resolve) => {
-    const req = { user: { role, school_id: 1 } };
-    const res = {
-      statusCode: 200,
-      status(code) {
-        this.statusCode = code;
-        return this;
-      },
-      send(message) {
-        resolve({ statusCode: this.statusCode, message });
-      },
-    };
-
-    middleware(req, res, () => {
-      resolve({ statusCode: 200, message: "next" });
-    });
-  });
 
 const routesPath = path.join(__dirname, "..", "routes", "studentRoutes.js");
 const controllerPath = path.join(__dirname, "..", "controllers", "studentController.js");
@@ -46,31 +26,26 @@ const run = async () => {
   );
   console.log("✓ PUT /api/students/:id route registered");
 
-  assert(
-    routesContent.includes("isAdminLike"),
-    "studentRoutes must use isAdminLike"
-  );
-  assert(
-    !routesContent.includes('roleMiddleware("admin")'),
-    "studentRoutes must not use roleMiddleware(\"admin\")"
-  );
-  console.log("✓ POST/PUT/DELETE use isAdminLike (admin + super_admin)");
+  assert(routesContent.includes('authorize("student.create")'), "POST must use student.create");
+  assert(routesContent.includes('authorize("student.update")'), "PUT must use student.update");
+  assert(routesContent.includes('authorize("student.delete")'), "DELETE must use student.delete");
+  assert(routesContent.includes('authorize("student.read")'), "GET must use student.read");
+  assert(!routesContent.includes("isAdminLike"), "studentRoutes must not use isAdminLike");
+  console.log("✓ CRUD routes use permission-based authorize()");
 
   assert(
-    /router\.delete\([\s\S]*isAdminLike/.test(routesContent),
-    "DELETE must use isAdminLike"
-  );
-  console.log("✓ DELETE protected with isAdminLike");
-
-  assert(
-    controllerContent.includes('role !== "super_admin"'),
-    "getStudents must bypass school filter for super_admin"
+    controllerContent.includes("resolveSchoolScope"),
+    "studentController must use resolveSchoolScope"
   );
   assert(
-    controllerContent.includes("schoolClause"),
-    "getStudents must apply schoolClause"
+    controllerContent.includes("resolveSchoolIdForWrite"),
+    "studentController must use resolveSchoolIdForWrite"
   );
-  console.log("✓ GET list applies school_id filter with super_admin bypass");
+  assert(
+    controllerContent.includes("buildSchoolClause"),
+    "studentController must apply buildSchoolClause"
+  );
+  console.log("✓ Controller uses tenantScope helpers");
 
   assert(
     routesContent.includes("asyncHandler(updateStudent)"),
@@ -83,15 +58,6 @@ const run = async () => {
     "updateStudent must validate request body"
   );
   console.log("✓ updateStudent validates with studentSchema");
-
-  for (const role of ["admin", "super_admin"]) {
-    const result = await runMiddleware(isAdminLike, role);
-    assert(result.statusCode === 200, `isAdminLike should allow ${role}`);
-  }
-
-  const teacherResult = await runMiddleware(isAdminLike, "teacher");
-  assert(teacherResult.statusCode === 403, "isAdminLike should deny teacher");
-  console.log("✓ isAdminLike allows admin/super_admin and denies teacher");
 
   console.log("\nAll student hardening checks passed.");
 };

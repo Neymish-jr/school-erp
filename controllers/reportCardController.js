@@ -1,15 +1,13 @@
 const pool = require("../db");
 const { successResponse, errorResponse } = require("../utils/response");
-
-const buildSchoolClause = (role, schoolId, params, tableAlias = "s") => {
-  if (role !== "super_admin" && schoolId != null) {
-    params.push(schoolId);
-    return ` AND ${tableAlias}.school_id = $${params.length}`;
-  }
-
-  return "";
-};
-
+const {
+  buildSchoolClause,
+  resolveSchoolScope,
+} = require("../utils/tenantScope");
+const {
+  getGrade,
+  getResultStatus,
+} = require("../constants/assessmentResults");
 const EXAM_ORDER = [
   "Unit Test 1",
   "Unit Test 2",
@@ -20,28 +18,6 @@ const EXAM_ORDER = [
   "Pre Board 2",
   "Final Exam",
 ];
-
-const getGrade = (percentage) => {
-  if (percentage >= 90) {
-    return "A+";
-  }
-
-  if (percentage >= 75) {
-    return "A";
-  }
-
-  if (percentage >= 60) {
-    return "B";
-  }
-
-  if (percentage >= 45) {
-    return "C";
-  }
-
-  return "Fail";
-};
-
-const getStatus = (percentage) => (percentage >= 45 ? "Pass" : "Fail");
 
 const getExamOrder = (examName) => {
   const index = EXAM_ORDER.indexOf(examName);
@@ -56,10 +32,19 @@ const getExamOrder = (examName) => {
 const getReportCard = async (req, res) => {
   try {
     const { studentId } = req.params;
-    const { school_id: schoolId, role } = req.user;
+    const scope = resolveSchoolScope(req, res);
+    if (!scope) {
+      return;
+    }
+    const { schoolId, role } = scope;
 
     const studentParams = [studentId];
-    const studentSchoolClause = buildSchoolClause(role, schoolId, studentParams);
+    const studentSchoolClause = buildSchoolClause(
+      role,
+      schoolId,
+      studentParams,
+      "s"
+    );
 
     const studentResult = await pool.query(
       `
@@ -88,7 +73,12 @@ const getReportCard = async (req, res) => {
     const student = studentResult.rows[0];
 
     const resultParams = [studentId];
-    const resultsSchoolClause = buildSchoolClause(role, schoolId, resultParams);
+    const resultsSchoolClause = buildSchoolClause(
+      role,
+      schoolId,
+      resultParams,
+      "s"
+    );
 
     const resultRows = await pool.query(
       `
@@ -130,7 +120,7 @@ const getReportCard = async (req, res) => {
       };
 
       const subjectPercentage = Number(row.percentage || 0);
-      const subjectStatus = row.result_status || getStatus(subjectPercentage);
+      const subjectStatus = row.result_status || getResultStatus(subjectPercentage);
 
       existing.subjects.push({
         subject_id: row.subject_id,
@@ -161,7 +151,7 @@ const getReportCard = async (req, res) => {
           ...group,
           percentage: Number(percentage.toFixed(2)),
           grade: getGrade(percentage),
-          status: getStatus(percentage),
+          status: getResultStatus(percentage),
           subjects: group.subjects.sort((first, second) =>
             (first.subject_name || "").localeCompare(second.subject_name || "")
           ),
@@ -185,7 +175,7 @@ const getReportCard = async (req, res) => {
           obtained_marks: totalObtained,
           percentage: Number(overallPercentage.toFixed(2)),
           grade: getGrade(overallPercentage),
-          status: getStatus(overallPercentage),
+          status: getResultStatus(overallPercentage),
         },
         exam_groups: sortedExamGroups,
       },

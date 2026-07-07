@@ -69,6 +69,11 @@ const ensureSchema = async () => {
     await pool.query(fs.readFileSync(bridgeMigration, "utf8"));
   }
 
+  const activitiesMigration = path.join(__dirname, "..", "migrations", "016_create_activities.sql");
+  if (fs.existsSync(activitiesMigration)) {
+    await pool.query(fs.readFileSync(activitiesMigration, "utf8"));
+  }
+
   const cashbookMigration = path.join(__dirname, "..", "migrations", "014_create_cashbook_entries.sql");
   if (fs.existsSync(cashbookMigration)) {
     await pool.query(fs.readFileSync(cashbookMigration, "utf8"));
@@ -104,6 +109,17 @@ const ensureSchema = async () => {
 };
 
 const cleanup = async (yearLabel) => {
+  await pool.query(
+    `
+    DELETE FROM activities
+    WHERE budget_allocation_id IN (
+      SELECT ba.id
+      FROM budget_allocations ba
+      INNER JOIN budget_sub_heads bsh ON bsh.id = ba.budget_sub_head_id
+      WHERE bsh.sub_head_code = 'TEST_EXP_SUB'
+    )
+    `
+  );
   await pool.query(
     `
     DELETE FROM cashbook_entries
@@ -280,6 +296,73 @@ const run = async () => {
       SCHOOL_ID
     );
     assert(Number(balanceAfterReject.available_balance) === 80000, "Rejected releases balance");
+
+    const updatedRejected = await expenseRequestService.updateExpenseRequest({
+      id: draft3.id,
+      schoolId: SCHOOL_ID,
+      userId: teacherUserId,
+      role: "teacher",
+      requestedAmount: 5000,
+      purpose: "Rejected flow updated",
+    });
+    assert(updatedRejected.status === EXPENSE_REQUEST_STATUS.REJECTED, "Rejected request editable");
+    assert(updatedRejected.purpose === "Rejected flow updated", "Rejected request fields updated");
+
+    const resubmitted = await expenseRequestService.submitExpenseRequest(
+      draft3.id,
+      SCHOOL_ID,
+      teacherUserId,
+      "teacher"
+    );
+    assert(resubmitted.status === EXPENSE_REQUEST_STATUS.PENDING, "Rejected request resubmitted");
+    assert(!resubmitted.rejection_remarks, "Rejection remarks cleared on resubmit");
+    console.log("✓ Rejected edit + resubmit");
+
+    const teacherRow = await pool.query(
+      `SELECT id FROM teachers WHERE school_id = $1 ORDER BY id LIMIT 1`,
+      [SCHOOL_ID]
+    );
+    if (teacherRow.rows.length > 0) {
+      await pool.query(
+        `
+        INSERT INTO activities (
+          activity_name,
+          description,
+          allocated_budget,
+          assigned_teacher_id,
+          school_id,
+          budget_allocation_id,
+          status,
+          created_by_user_id
+        )
+        VALUES ($1, $2, $3, $4, $5, $6, 'submitted', $7)
+        `,
+        [
+          "Test Activity Commit",
+          "Balance cross-module test",
+          15000,
+          teacherRow.rows[0].id,
+          SCHOOL_ID,
+          allocation.id,
+          teacherUserId,
+        ]
+      );
+
+      const balanceWithActivity = await expenseRequestService.getAllocationBalance(
+        allocation.id,
+        SCHOOL_ID
+      );
+      assert(
+        Number(balanceWithActivity.activity_committed_amount) === 15000,
+        "Activity committed included in balance"
+      );
+      assert(
+        Number(balanceWithActivity.available_balance) === 60000,
+        "Available balance subtracts expense and activity committed"
+      );
+      console.log("✓ Activity committed included in allocation balance");
+    }
+
     console.log("✓ Reject releases balance");
 
     await financialYearService.closeFinancialYear(fy.id, SCHOOL_ID);

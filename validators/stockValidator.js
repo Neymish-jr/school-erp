@@ -51,10 +51,21 @@ const stockEntryListQuerySchema = Joi.object({
     .optional(),
   item_name: Joi.string().trim().max(255).optional(),
   low_stock: Joi.string().valid("true", "false").optional(),
+  page: Joi.number().integer().min(1).optional(),
+  limit: Joi.number().integer().min(1).max(100).optional(),
+}).unknown(true);
+
+const stockDashboardQuerySchema = Joi.object({
+  category: Joi.string()
+    .valid(...STOCK_CATEGORIES)
+    .optional(),
+  item_name: Joi.string().trim().max(255).optional(),
+  low_stock: Joi.string().valid("true", "false").optional(),
 }).unknown(true);
 
 module.exports = {
   stockEntryCreateSchema,
   stockIssueCreateSchema,
   stockEntryListQuerySchema,
+  stockDashboardQuerySchema,
 };

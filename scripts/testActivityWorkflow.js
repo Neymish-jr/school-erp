@@ -255,6 +255,49 @@ const run = async () => {
     assert(rejected.status === ACTIVITY_STATUS.REJECTED, "Rejected");
     console.log("✓ Reject");
 
+    const revised = await activityService.updateActivity({
+      id: rejectedDraft.activity.id,
+      schoolId: SCHOOL_ID,
+      userId: teacherUserId,
+      role: "teacher",
+      teacherId,
+      activityName: "TEST_ACT_WF_Reject Flow Revised",
+      description: "Revised after rejection",
+      allocatedBudget: 4500,
+      assignedTeacherId: teacherId,
+      budgetAllocationId: allocation.id,
+    });
+    assert(revised.activity_name === "TEST_ACT_WF_Reject Flow Revised", "Rejected activity edited");
+    console.log("✓ Edit rejected activity");
+
+    const resubmitted = await activityService.submitActivity({
+      id: rejectedDraft.activity.id,
+      schoolId: SCHOOL_ID,
+      userId: teacherUserId,
+      role: "teacher",
+      teacherId,
+    });
+    assert(resubmitted.status === ACTIVITY_STATUS.SUBMITTED, "Resubmitted after rejection");
+    assert(resubmitted.rejection_remarks == null, "Rejection remarks cleared on resubmit");
+    console.log("✓ Resubmit rejected activity");
+
+    let budgetErrorThrown = false;
+    try {
+      await activityService.createActivity({
+        schoolId: SCHOOL_ID,
+        userId: teacherUserId,
+        activityName: "TEST_ACT_WF_Over Budget",
+        description: "Should fail budget validation",
+        allocatedBudget: 250000,
+        assignedTeacherId: teacherId,
+        budgetAllocationId: allocation.id,
+      });
+    } catch (err) {
+      budgetErrorThrown = err.message.includes("exceeds available allocation balance");
+    }
+    assert(budgetErrorThrown, "Create must reject over-allocation budget");
+    console.log("✓ Budget cap validation");
+
     console.log("\nAll activity workflow tests passed.");
   } finally {
     await cleanup(testLabel);

@@ -110,7 +110,7 @@ const getMyPermissions = async (req, res) => {
   try {
     const effective = await getEffectivePermissions(
       req.user.id,
-      req.user.school_id ?? null
+      getEffectiveSchoolId(req)
     );
 
     let schoolContext = null;

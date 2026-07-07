@@ -278,15 +278,52 @@ const run = async () => {
     assert(paid.status === EXPENSE_REQUEST_STATUS.PAID, "Expense request must be paid");
     console.log("✓ Mark paid with optional stock creation succeeds");
 
-    const autoEntries = await stockRegisterService.listStockEntries({
+    const autoList = await stockRegisterService.listStockEntries({
       schoolId: SCHOOL_ID,
       role: "admin",
       itemName: "TEST_STOCK_WF_AUTO_ITEM",
     });
-    assert(autoEntries.length === 1, "Auto stock entry must be created");
-    assert(autoEntries[0].expense_request_id === expenseRequest.id, "Stock entry must link to expense request");
-    assert(autoEntries[0].source === "expense_payment", "Auto entry source must be expense_payment");
+    assert(autoList.data.length === 1, "Auto stock entry must be created");
+    assert(autoList.data[0].expense_request_id === expenseRequest.id, "Stock entry must link to expense request");
+    assert(autoList.data[0].source === "expense_payment", "Auto entry source must be expense_payment");
+    assert(autoList.pagination.total >= 1, "Pagination metadata must be returned");
     console.log("✓ Auto stock entry created from paid expense request");
+
+    const pagedList = await stockRegisterService.listStockEntries({
+      schoolId: SCHOOL_ID,
+      role: "admin",
+      page: 1,
+      limit: 1,
+    });
+    assert(pagedList.data.length === 1, "Pagination limit must be enforced");
+    assert(pagedList.pagination.total >= 2, "Pagination total must reflect all entries");
+    console.log("✓ Entry list pagination");
+
+    const filteredDashboard = await stockRegisterService.getStockDashboard({
+      schoolId: SCHOOL_ID,
+      role: "admin",
+      itemName: "TEST_STOCK_WF_MANUAL_ITEM",
+    });
+    assert(filteredDashboard.total_items === 1, "Dashboard must honor item_name filter");
+    console.log("✓ Dashboard filter alignment");
+
+    const entryIssues = await stockRegisterService.listStockIssues({
+      schoolId: SCHOOL_ID,
+      role: "admin",
+      stockEntryId: manualEntry.id,
+      limit: 10,
+    });
+    assert(entryIssues.length === 1, "Issues can be filtered by stock entry");
+    console.log("✓ Issue history by stock entry");
+
+    const entryAudit = await stockRegisterService.listAuditLogs({
+      schoolId: SCHOOL_ID,
+      role: "admin",
+      stockEntryId: manualEntry.id,
+      limit: 20,
+    });
+    assert(entryAudit.length >= 1, "Audit logs must be filterable by stock entry");
+    console.log("✓ Entry audit filter");
 
     const dashboard = await stockRegisterService.getStockDashboard({
       schoolId: SCHOOL_ID,

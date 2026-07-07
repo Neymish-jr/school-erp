@@ -1,9 +1,14 @@
 const pool = require("../db");
 const { successResponse, errorResponse } = require("../utils/response");
+const { resolveSchoolIdForWrite } = require("../utils/tenantScope");
 const {
   fetchTeacherForAssignment,
   getTeacherAssignmentEligibility,
 } = require("../utils/teacherAssignmentGuard");
+const {
+  recordAdminChargeAssigned,
+  recordAdminChargeRelieved,
+} = require("../services/staffServiceHistoryRecorder");
 
 // Helper to build base SELECT query for assignments
 const getBaseAssignmentQuery = () => `
@@ -32,7 +37,10 @@ const getBaseAssignmentQuery = () => `
 
 const getAssignments = async (req, res) => {
   try {
-    const { school_id } = req.user;
+    const school_id = resolveSchoolIdForWrite(req, res);
+    if (school_id == null) {
+      return;
+    }
     
     const query = `
       ${getBaseAssignmentQuery()}
@@ -58,7 +66,10 @@ const getAssignments = async (req, res) => {
 
 const getAssignmentsForTeacher = async (req, res) => {
   try {
-    const { school_id } = req.user;
+    const school_id = resolveSchoolIdForWrite(req, res);
+    if (school_id == null) {
+      return;
+    }
     const { teacherId } = req.params;
     
     // Validate teacher belongs to school
@@ -95,7 +106,10 @@ const getAssignmentsForTeacher = async (req, res) => {
 
 const getAvailableCharges = async (req, res) => {
   try {
-    const { school_id } = req.user;
+    const school_id = resolveSchoolIdForWrite(req, res);
+    if (school_id == null) {
+      return;
+    }
     
     // Fetch active administrative charges NOT currently actively assigned to ANY teacher
     const query = `
@@ -130,7 +144,11 @@ const getAvailableCharges = async (req, res) => {
 
 const createAssignment = async (req, res) => {
   try {
-    const { school_id, id: assigned_by_user_id } = req.user;
+    const school_id = resolveSchoolIdForWrite(req, res);
+    if (school_id == null) {
+      return;
+    }
+    const { id: assigned_by_user_id } = req.user;
     const { teacher_id, administrative_charge_id, academic_year, remarks, is_additional_charge } = req.body;
     
     const teacherRow = await fetchTeacherForAssignment(pool, teacher_id, school_id);
@@ -150,6 +168,14 @@ const createAssignment = async (req, res) => {
     );
     if (chargeCheck.rowCount === 0) {
       return errorResponse(res, { message: "Administrative charge not found in your school", error: "Validation Error", status: 400 });
+    }
+
+    if (chargeCheck.rows[0].is_active !== true) {
+      return errorResponse(res, {
+        message: "This administrative charge is inactive and cannot be assigned",
+        error: "Inactive charge",
+        status: 400,
+      });
     }
 
     // 3. Pre-insert Check: Verify that no one else is currently holding this charge
@@ -174,42 +200,83 @@ const createAssignment = async (req, res) => {
       RETURNING *
     `;
     
-    const result = await pool.query(insertQuery, [
-      teacher_id, 
-      administrative_charge_id, 
-      academic_year, 
-      remarks || null, 
-      is_additional_charge || false,
-      school_id,
-      assigned_by_user_id
-    ]);
-    
-    return successResponse(res, {
-      message: "Teacher administrative charge assigned successfully",
-      data: result.rows[0],
-      status: 201
-    });
-    
+    const client = await pool.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const result = await client.query(insertQuery, [
+        teacher_id,
+        administrative_charge_id,
+        academic_year,
+        remarks || null,
+        is_additional_charge || false,
+        school_id,
+        assigned_by_user_id,
+      ]);
+
+      const assignment = result.rows[0];
+
+      await recordAdminChargeAssigned(client, {
+        school_id,
+        teacher_id,
+        administrative_charge_id,
+        admin_charge_assignment_id: assignment.id,
+        effective_date: new Date(),
+        recorded_by_user_id: assigned_by_user_id,
+        remarks,
+      });
+
+      await client.query("COMMIT");
+
+      return successResponse(res, {
+        message: "Teacher administrative charge assigned successfully",
+        data: assignment,
+        status: 201,
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+
+      if (err.code === "23505" && err.constraint === "unique_active_charge_per_school") {
+        return errorResponse(res, {
+          message: "This administrative charge is already assigned to another teacher.",
+          error: "Duplicate Active Assignment",
+          status: 409,
+        });
+      }
+
+      console.error(err);
+      return errorResponse(res, {
+        message: "Error creating assignment",
+        error: err.message,
+        status: 500,
+      });
+    } finally {
+      client.release();
+    }
   } catch (err) {
     if (err.code === "23505" && err.constraint === "unique_active_charge_per_school") {
       return errorResponse(res, {
         message: "This administrative charge is already assigned to another teacher.",
         error: "Duplicate Active Assignment",
-        status: 409
+        status: 409,
       });
     }
     console.error(err);
     return errorResponse(res, {
       message: "Error creating assignment",
       error: err.message,
-      status: 500
+      status: 500,
     });
   }
 };
 
 const updateAssignment = async (req, res) => {
   try {
-    const { school_id } = req.user;
+    const school_id = resolveSchoolIdForWrite(req, res);
+    if (school_id == null) {
+      return;
+    }
     const { id } = req.params;
     const { academic_year, remarks, is_additional_charge } = req.body;
     
@@ -290,28 +357,57 @@ const updateAssignment = async (req, res) => {
 
 const relieveAssignment = async (req, res) => {
   try {
-    const { school_id } = req.user;
+    const school_id = resolveSchoolIdForWrite(req, res);
+    if (school_id == null) {
+      return;
+    }
     const { id } = req.params;
     
-    const result = await pool.query(`
+    const client = await pool.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const result = await client.query(`
       UPDATE teacher_administrative_charge_assignments
       SET is_active = false, relieved_on = CURRENT_DATE, updated_at = NOW()
       WHERE id = $1 AND school_id = $2 AND is_active = true
       RETURNING *
     `, [id, school_id]);
     
-    if (result.rowCount === 0) {
-      return errorResponse(res, { 
-        message: "Active assignment not found or already relieved", 
-        error: "Not found or already inactive", 
-        status: 404 
+      if (result.rowCount === 0) {
+        await client.query("ROLLBACK");
+        return errorResponse(res, { 
+          message: "Active assignment not found or already relieved", 
+          error: "Not found or already inactive", 
+          status: 404 
+        });
+      }
+
+      const assignment = result.rows[0];
+
+      await recordAdminChargeRelieved(client, {
+        school_id,
+        teacher_id: assignment.teacher_id,
+        administrative_charge_id: assignment.administrative_charge_id,
+        admin_charge_assignment_id: assignment.id,
+        effective_date: assignment.relieved_on || new Date(),
+        recorded_by_user_id: req.user?.id || null,
+        remarks: assignment.remarks,
       });
-    }
+
+      await client.query("COMMIT");
     
-    return successResponse(res, {
-      message: "Teacher relieved from charge successfully",
-      data: result.rows[0]
-    });
+      return successResponse(res, {
+        message: "Teacher relieved from charge successfully",
+        data: assignment
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
     
   } catch (err) {
     console.error(err);

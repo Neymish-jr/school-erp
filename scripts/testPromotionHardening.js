@@ -7,14 +7,13 @@ require("dotenv").config({ path: require("path").join(__dirname, "..", ".env") }
 
 const fs = require("fs");
 const path = require("path");
-const {
-  buildSchoolClause,
-  parseStudentId,
-} = require("../controllers/promotionController");
+const { buildSchoolClause } = require("../utils/tenantScope");
 
 const assert = (condition, message) => {
   if (!condition) throw new Error(message);
 };
+
+const { parseStudentId } = require("../controllers/promotionController");
 
 const controllerPath = path.join(__dirname, "..", "controllers", "promotionController.js");
 const routesPath = path.join(__dirname, "..", "routes", "promotionRoutes.js");
@@ -35,32 +34,40 @@ const run = () => {
   console.log("✓ Attendance calculation uses 'Present'");
 
   assert(
-    controllerContent.includes("req.user"),
-    "Controller must read req.user"
-  );
-  assert(
-    controllerContent.includes('role !== "super_admin"'),
-    "Controller must bypass school filter for super_admin"
+    controllerContent.includes("resolveSchoolScope"),
+    "Controller must use resolveSchoolScope"
   );
   assert(
     controllerContent.includes("buildSchoolClause"),
     "Controller must use shared school scoping helper"
   );
-  console.log("✓ School isolation uses req.user with super_admin bypass");
+  console.log("✓ School isolation uses tenantScope helpers");
 
   assert(
     /FROM students s[\s\S]*buildSchoolClause/.test(controllerContent),
     "Student lookup must be school scoped"
   );
   assert(
+    controllerContent.includes("FROM student_results sr"),
+    "Promotion must query student_results before legacy marks"
+  );
+  assert(
     /FROM marks m[\s\S]*JOIN students s/.test(controllerContent),
-    "Marks lookup must join students for school scope"
+    "Marks fallback must join students for school scope"
+  );
+  assert(
+    controllerContent.includes("fetchStudentAssessmentRows"),
+    "Promotion must use shared assessment fetch helper"
+  );
+  assert(
+    controllerContent.includes("../constants/assessmentResults"),
+    "Promotion must use shared pass threshold constants"
   );
   assert(
     /FROM attendance a[\s\S]*JOIN students s/.test(controllerContent),
     "Attendance lookup must join students for school scope"
   );
-  console.log("✓ Student, marks, and attendance lookups are school scoped");
+  console.log("✓ Student, assessment, and attendance lookups are school scoped");
 
   assert(
     controllerContent.includes("parseStudentId"),
@@ -77,20 +84,20 @@ const run = () => {
   assert(adminParams.length === 2, "Admin params must include school_id");
 
   const superParams = [42];
-  const superClause = buildSchoolClause("super_admin", 1, superParams);
-  assert(superClause === "", "super_admin must bypass school clause");
-  assert(superParams.length === 1, "super_admin params must not add school_id");
-  console.log("✓ buildSchoolClause matches student module pattern");
+  const superClause = buildSchoolClause("super_admin", null, superParams);
+  assert(superClause === "", "null schoolId must bypass school clause");
+  assert(superParams.length === 1, "null schoolId params must not add school_id");
+  console.log("✓ buildSchoolClause uses effective school context");
 
   assert(
-    routesContent.includes("authenticate") && routesContent.includes("isAdminLike"),
-    "Route must keep authenticate and isAdminLike"
+    routesContent.includes("authenticate") && routesContent.includes('authorize("student.promotion.execute")'),
+    "Route must use authenticate and student.promotion.execute"
   );
   assert(
     routesContent.includes("processPromotion"),
     "Route must wire processPromotion"
   );
-  console.log("✓ Route wiring and auth unchanged");
+  console.log("✓ Route wiring and permission auth updated");
 
   console.log("\nAll promotion hardening checks passed.");
 };

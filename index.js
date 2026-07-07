@@ -49,10 +49,9 @@ const studentImportRoutes = require(
 );
 const {
   authenticate,
-  isAdminLike,
   isSuperAdmin,
-  isTeacher
 } = require("./middleware/auth");
+const authorize = require("./middleware/authorize");
 
 const errorHandler = require("./middleware/errorHandler");
 const swaggerUi = require("swagger-ui-express");
@@ -693,28 +692,28 @@ app.use("/", authRoutes);
 app.get(
   "/api/dashboard/staff-posts/total",
   authenticate,
-  isAdminLike,
+  authorize("dashboard.staff_post.read"),
   staffPostController.getTotalStaffPosts
 );
 
 app.get(
   "/api/dashboard/staff-posts/sanctioned-strength",
   authenticate,
-  isAdminLike,
+  authorize("dashboard.staff_post.read"),
   staffPostController.getTotalSanctionedStrength
 );
 
 app.get(
   "/api/dashboard/staff-posts/filled-positions",
   authenticate,
-  isAdminLike,
+  authorize("dashboard.staff_post.read"),
   staffPostController.getFilledPositions
 );
 
 app.get(
   "/api/dashboard/staff-posts/vacant-positions",
   authenticate,
-  isAdminLike,
+  authorize("dashboard.staff_post.read"),
   staffPostController.getVacantPositions
 );
 
@@ -743,8 +742,8 @@ app.get("/test-db", authenticate, isSuperAdmin, async (req, res) => {
   }
 });
 
-app.get("/admin-data", authenticate, isAdminLike, (req, res) => {
-  res.send("Only admin can see this");
+app.get("/admin-data", authenticate, authorize("dashboard.summary.read"), (req, res) => {
+  res.send("Only authorized users can see this");
 });
 
 app.use(errorHandler);

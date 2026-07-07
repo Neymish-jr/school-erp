@@ -1,7 +1,6 @@
 const { errorResponse } = require("./response");
 const {
   getEffectiveSchoolId,
-  isPlatformRole,
 } = require("./schoolContext");
 
 const resolveSchoolIdForWrite = (req, res) => {
@@ -22,10 +21,6 @@ const resolveSchoolIdForWrite = (req, res) => {
 const resolveSchoolScope = (req, res) => {
   const { role } = req.user || {};
   const schoolId = getEffectiveSchoolId(req);
-
-  if (isPlatformRole(role)) {
-    return { schoolId, role };
-  }
 
   if (schoolId == null) {
     errorResponse(res, {

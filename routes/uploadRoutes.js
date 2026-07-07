@@ -3,10 +3,8 @@ const router = express.Router();
 
 const multer = require("multer");
 const { importStudents } = require("../controllers/studentImportController");
-const {
-  authenticate,
-  isAdminLike,
-} = require("../middleware/auth");
+const { authenticate } = require("../middleware/auth");
+const authorize = require("../middleware/authorize");
 
 const storage = multer.diskStorage({
   destination(req, file, cb) {
@@ -22,7 +20,7 @@ const upload = multer({ storage });
 router.post(
   "/students",
   authenticate,
-  isAdminLike,
+  authorize("student.import.execute"),
   upload.single("file"),
   importStudents
 );

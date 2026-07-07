@@ -31,6 +31,63 @@ const ENTRY_FROM = `
   LEFT JOIN users creator ON creator.id = se.created_by_user_id
 `;
 
+const ISSUED_JOIN = `
+  LEFT JOIN (
+    SELECT
+      stock_entry_id,
+      COALESCE(SUM(issued_quantity), 0)::numeric AS issued_quantity_computed
+    FROM stock_issues
+    GROUP BY stock_entry_id
+  ) issued ON issued.stock_entry_id = se.id
+`;
+
+const buildEntryFilters = ({ schoolId, role, category, itemName }) => {
+  const params = [];
+  const conditions = ["1=1"];
+
+  if (role !== "super_admin" && schoolId != null) {
+    params.push(schoolId);
+    conditions.push(`se.school_id = $${params.length}`);
+  }
+
+  if (category) {
+    params.push(category);
+    conditions.push(`se.category = $${params.length}`);
+  }
+
+  if (itemName) {
+    params.push(`%${itemName}%`);
+    conditions.push(`se.item_name ILIKE $${params.length}`);
+  }
+
+  return { params, whereClause: conditions.join(" AND ") };
+};
+
+const buildLowStockClause = (lowStockOnly, params) => {
+  if (!lowStockOnly) {
+    return "";
+  }
+
+  params.push(getLowStockThreshold());
+  return ` AND (se.quantity - COALESCE(issued.issued_quantity_computed, 0)) <= $${params.length}`;
+};
+
+const mapEntryRow = (row) => {
+  const receivedQuantity = Number(row.quantity);
+  const issuedQuantity = Number(row.issued_quantity_computed || 0);
+  const availableQuantity = Number((receivedQuantity - issuedQuantity).toFixed(2));
+
+  const { issued_quantity_computed, ...entry } = row;
+
+  return {
+    ...entry,
+    category_label: STOCK_CATEGORY_LABELS[entry.category] || entry.category,
+    issued_quantity: issuedQuantity,
+    available_quantity: availableQuantity,
+    is_low_stock: availableQuantity <= getLowStockThreshold(),
+  };
+};
+
 const writeAuditLog = async (
   client,
   { schoolId, entityType, entityId, action, actorUserId, changes = {} }
@@ -107,41 +164,66 @@ const getStockEntryById = async ({ id, schoolId, role, client = null }) => {
   return enrichEntryWithBalance(result.rows[0], client);
 };
 
-const listStockEntries = async ({ schoolId, role, category, itemName, lowStockOnly }) => {
-  const params = [];
-  let query = `
-    SELECT ${ENTRY_SELECT}
-    ${ENTRY_FROM}
-    WHERE 1=1
-  `;
+const listStockEntries = async ({
+  schoolId,
+  role,
+  category,
+  itemName,
+  lowStockOnly,
+  page,
+  limit,
+}) => {
+  const pageNumber = Math.max(1, Number(page) || 1);
+  const pageLimit = Math.min(100, Math.max(1, Number(limit) || 25));
+  const offset = (pageNumber - 1) * pageLimit;
 
-  if (role !== "super_admin" && schoolId != null) {
-    params.push(schoolId);
-    query += ` AND se.school_id = $${params.length}`;
-  }
+  const { params, whereClause } = buildEntryFilters({
+    schoolId,
+    role,
+    category,
+    itemName,
+  });
+  const lowStockClause = buildLowStockClause(lowStockOnly, params);
 
-  if (category) {
-    params.push(category);
-    query += ` AND se.category = $${params.length}`;
-  }
-
-  if (itemName) {
-    params.push(`%${itemName}%`);
-    query += ` AND se.item_name ILIKE $${params.length}`;
-  }
-
-  query += ` ORDER BY se.purchase_date DESC, se.id DESC`;
-
-  const result = await pool.query(query, params);
-  const entries = await Promise.all(
-    result.rows.map((row) => enrichEntryWithBalance(row))
+  const countResult = await pool.query(
+    `
+    SELECT COUNT(*)::int AS total
+    FROM stock_entries se
+    ${ISSUED_JOIN}
+    WHERE ${whereClause}
+      ${lowStockClause}
+    `,
+    params
   );
 
-  if (lowStockOnly) {
-    return entries.filter((row) => row.is_low_stock);
-  }
+  const listParams = [...params, pageLimit, offset];
+  const result = await pool.query(
+    `
+    SELECT
+      ${ENTRY_SELECT},
+      COALESCE(issued.issued_quantity_computed, 0) AS issued_quantity_computed
+    ${ENTRY_FROM}
+    ${ISSUED_JOIN}
+    WHERE ${whereClause}
+      ${lowStockClause}
+    ORDER BY se.purchase_date DESC, se.id DESC
+    LIMIT $${listParams.length - 1}
+    OFFSET $${listParams.length}
+    `,
+    listParams
+  );
 
-  return entries;
+  const total = countResult.rows[0].total;
+
+  return {
+    data: result.rows.map(mapEntryRow),
+    pagination: {
+      page: pageNumber,
+      limit: pageLimit,
+      total,
+      total_pages: Math.max(1, Math.ceil(total / pageLimit)),
+    },
+  };
 };
 
 const createStockEntry = async ({
@@ -371,33 +453,53 @@ const issueStock = async ({
   issueDate,
   remarks = null,
 }) => {
-  const entry = await getStockEntryById({
-    id: stockEntryId,
-    schoolId,
-    role: "admin",
-  });
-
-  await verifyIssueTarget({
-    schoolId: entry.school_id,
-    issueType,
-    teacherId: issuedToTeacherId,
-    activityId: issuedToActivityId,
-    department: issuedToDepartment,
-  });
-
   const normalizedIssueQty = Number(issuedQuantity);
-
-  if (normalizedIssueQty > entry.available_quantity) {
-    throw new AppError(
-      400,
-      `Cannot issue more than available quantity (${entry.available_quantity})`
-    );
-  }
-
   const client = await pool.connect();
 
   try {
     await client.query("BEGIN");
+
+    const entryParams = [stockEntryId];
+    let entryQuery = `
+      SELECT ${ENTRY_SELECT}
+      ${ENTRY_FROM}
+      WHERE se.id = $1
+    `;
+
+    if (schoolId != null) {
+      entryParams.push(schoolId);
+      entryQuery += ` AND se.school_id = $${entryParams.length}`;
+    }
+
+    entryQuery += " FOR UPDATE OF se";
+
+    const entryResult = await client.query(entryQuery, entryParams);
+
+    if (entryResult.rowCount === 0) {
+      throw new AppError(404, "Stock entry not found");
+    }
+
+    const entry = entryResult.rows[0];
+
+    await verifyIssueTarget({
+      schoolId: entry.school_id,
+      issueType,
+      teacherId: issuedToTeacherId,
+      activityId: issuedToActivityId,
+      department: issuedToDepartment,
+    });
+
+    const issuedSoFar = await getIssuedQuantityForEntry(client, stockEntryId, entry.school_id);
+    const availableQuantity = Number(
+      (Number(entry.quantity) - issuedSoFar).toFixed(2)
+    );
+
+    if (normalizedIssueQty > availableQuantity) {
+      throw new AppError(
+        400,
+        `Cannot issue more than available quantity (${availableQuantity})`
+      );
+    }
 
     const insertResult = await client.query(
       `
@@ -496,6 +598,17 @@ const ISSUE_FROM = `
   LEFT JOIN users creator ON creator.id = si.created_by_user_id
 `;
 
+const mapIssueRow = (row) => ({
+  ...row,
+  category_label: STOCK_CATEGORY_LABELS[row.category] || row.category,
+  issued_to:
+    row.issue_type === "teacher"
+      ? row.issued_to_teacher_name
+      : row.issue_type === "activity"
+        ? row.issued_to_activity_name
+        : row.issued_to_department,
+});
+
 const getStockIssueById = async ({ id, schoolId, role }) => {
   const params = [id];
   let query = `
@@ -515,21 +628,17 @@ const getStockIssueById = async ({ id, schoolId, role }) => {
     throw new AppError(404, "Stock issue not found");
   }
 
-  const row = result.rows[0];
-
-  return {
-    ...row,
-    category_label: STOCK_CATEGORY_LABELS[row.category] || row.category,
-    issued_to:
-      row.issue_type === "teacher"
-        ? row.issued_to_teacher_name
-        : row.issue_type === "activity"
-          ? row.issued_to_activity_name
-          : row.issued_to_department,
-  };
+  return mapIssueRow(result.rows[0]);
 };
 
-const listStockIssues = async ({ schoolId, role, limit = 20 }) => {
+const listStockIssues = async ({
+  schoolId,
+  role,
+  stockEntryId,
+  category,
+  itemName,
+  limit = 20,
+}) => {
   const params = [];
   let query = `
     SELECT ${ISSUE_SELECT}
@@ -542,40 +651,99 @@ const listStockIssues = async ({ schoolId, role, limit = 20 }) => {
     query += ` AND si.school_id = $${params.length}`;
   }
 
+  if (stockEntryId) {
+    params.push(stockEntryId);
+    query += ` AND si.stock_entry_id = $${params.length}`;
+  }
+
+  if (category) {
+    params.push(category);
+    query += ` AND se.category = $${params.length}`;
+  }
+
+  if (itemName) {
+    params.push(`%${itemName}%`);
+    query += ` AND se.item_name ILIKE $${params.length}`;
+  }
+
   params.push(limit);
   query += ` ORDER BY si.issue_date DESC, si.id DESC LIMIT $${params.length}`;
 
   const result = await pool.query(query, params);
 
-  return result.rows.map((row) => ({
-    ...row,
-    category_label: STOCK_CATEGORY_LABELS[row.category] || row.category,
-    issued_to:
-      row.issue_type === "teacher"
-        ? row.issued_to_teacher_name
-        : row.issue_type === "activity"
-          ? row.issued_to_activity_name
-          : row.issued_to_department,
-  }));
+  return result.rows.map(mapIssueRow);
 };
 
-const getStockDashboard = async ({ schoolId, role }) => {
-  const entries = await listStockEntries({ schoolId, role });
-  const recentIssues = await listStockIssues({ schoolId, role, limit: 10 });
+const getStockDashboard = async ({
+  schoolId,
+  role,
+  category,
+  itemName,
+  lowStockOnly,
+}) => {
+  const { params, whereClause } = buildEntryFilters({
+    schoolId,
+    role,
+    category,
+    itemName,
+  });
+  const lowStockClause = buildLowStockClause(lowStockOnly, params);
+  const threshold = getLowStockThreshold();
 
-  const totalItems = entries.length;
-  const totalValue = entries.reduce(
-    (sum, row) => sum + Number(row.available_quantity) * Number(row.purchase_rate),
-    0
+  const statsParams = [...params, threshold];
+
+  const statsResult = await pool.query(
+    `
+    SELECT
+      COUNT(*)::int AS total_items,
+      COALESCE(
+        SUM(
+          (se.quantity - COALESCE(issued.issued_quantity_computed, 0)) * se.purchase_rate
+        ),
+        0
+      ) AS total_value,
+      COUNT(*) FILTER (
+        WHERE (se.quantity - COALESCE(issued.issued_quantity_computed, 0)) <= $${statsParams.length}
+      )::int AS low_stock_count
+    FROM stock_entries se
+    ${ISSUED_JOIN}
+    WHERE ${whereClause}
+      ${lowStockClause}
+    `,
+    statsParams
   );
-  const lowStockItems = entries.filter((row) => row.is_low_stock);
+
+  const lowStockItemsParams = [...params, threshold];
+  const lowStockItemsResult = await pool.query(
+    `
+    SELECT
+      ${ENTRY_SELECT},
+      COALESCE(issued.issued_quantity_computed, 0) AS issued_quantity_computed
+    ${ENTRY_FROM}
+    ${ISSUED_JOIN}
+    WHERE ${whereClause}
+      ${lowStockClause}
+      AND (se.quantity - COALESCE(issued.issued_quantity_computed, 0)) <= $${lowStockItemsParams.length}
+    ORDER BY (se.quantity - COALESCE(issued.issued_quantity_computed, 0)) ASC, se.id DESC
+    LIMIT 10
+    `,
+    lowStockItemsParams
+  );
+
+  const recentIssues = await listStockIssues({
+    schoolId,
+    role,
+    category,
+    itemName,
+    limit: 10,
+  });
 
   return {
-    total_items: totalItems,
-    total_value: Number(totalValue.toFixed(2)),
-    low_stock_threshold: getLowStockThreshold(),
-    low_stock_count: lowStockItems.length,
-    low_stock_items: lowStockItems,
+    total_items: statsResult.rows[0].total_items,
+    total_value: Number(Number(statsResult.rows[0].total_value).toFixed(2)),
+    low_stock_threshold: threshold,
+    low_stock_count: statsResult.rows[0].low_stock_count,
+    low_stock_items: lowStockItemsResult.rows.map(mapEntryRow),
     recent_issues: recentIssues,
     categories: STOCK_CATEGORIES.map((value) => ({
       value,
@@ -584,7 +752,14 @@ const getStockDashboard = async ({ schoolId, role }) => {
   };
 };
 
-const listAuditLogs = async ({ schoolId, role, entityType, entityId, limit = 50 }) => {
+const listAuditLogs = async ({
+  schoolId,
+  role,
+  entityType,
+  entityId,
+  stockEntryId,
+  limit = 50,
+}) => {
   const params = [];
   let query = `
     SELECT
@@ -607,14 +782,22 @@ const listAuditLogs = async ({ schoolId, role, entityType, entityId, limit = 50 
     query += ` AND sal.school_id = $${params.length}`;
   }
 
-  if (entityType) {
-    params.push(entityType);
-    query += ` AND sal.entity_type = $${params.length}`;
-  }
+  if (stockEntryId) {
+    params.push(stockEntryId);
+    query += ` AND (
+      (sal.entity_type = 'stock_entry' AND sal.entity_id = $${params.length})
+      OR (sal.entity_type = 'stock_issue' AND (sal.changes->>'stock_entry_id')::int = $${params.length})
+    )`;
+  } else {
+    if (entityType) {
+      params.push(entityType);
+      query += ` AND sal.entity_type = $${params.length}`;
+    }
 
-  if (entityId) {
-    params.push(entityId);
-    query += ` AND sal.entity_id = $${params.length}`;
+    if (entityId) {
+      params.push(entityId);
+      query += ` AND sal.entity_id = $${params.length}`;
+    }
   }
 
   params.push(limit);

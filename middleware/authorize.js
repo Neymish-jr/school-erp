@@ -1,4 +1,5 @@
 const { hasPermission } = require("../services/permissionService");
+const { getEffectiveSchoolId } = require("../utils/schoolContext");
 
 /**
  * Permission middleware factory.
@@ -20,7 +21,7 @@ const authorize = (permissionKey) => async (req, res, next) => {
     const allowed = await hasPermission(
       req.user.id,
       permissionKey,
-      req.user.school_id ?? null
+      getEffectiveSchoolId(req)
     );
 
     if (allowed) {

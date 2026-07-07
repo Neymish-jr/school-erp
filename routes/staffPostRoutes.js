@@ -2,7 +2,8 @@ const express = require("express");
 const router = express.Router();
 
 const asyncHandler = require("../middleware/asyncHandler");
-const { authenticate, isAdminLike } = require("../middleware/auth");
+const { authenticate } = require("../middleware/auth");
+const authorize = require("../middleware/authorize");
 const { validateRequest } = require("../middleware/validation");
 
 const { staffPostSchema } = require("../validators/staffPostValidator");
@@ -15,22 +16,14 @@ const {
   deleteStaffPost,
 } = require("../controllers/staffPostController");
 
-router.get(
-  "/",
-  authenticate,
-  asyncHandler(getAllStaffPosts)
-);
+router.get("/", authenticate, authorize("staff_post.read"), asyncHandler(getAllStaffPosts));
 
-router.get(
-  "/:id",
-  authenticate,
-  asyncHandler(getStaffPostById)
-);
+router.get("/:id", authenticate, authorize("staff_post.read"), asyncHandler(getStaffPostById));
 
 router.post(
   "/",
   authenticate,
-  isAdminLike,
+  authorize("staff_post.create"),
   validateRequest(staffPostSchema),
   asyncHandler(createStaffPost)
 );
@@ -38,7 +31,7 @@ router.post(
 router.put(
   "/:id",
   authenticate,
-  isAdminLike,
+  authorize("staff_post.update"),
   validateRequest(staffPostSchema),
   asyncHandler(updateStaffPost)
 );
@@ -46,7 +39,7 @@ router.put(
 router.delete(
   "/:id",
   authenticate,
-  isAdminLike,
+  authorize("staff_post.delete"),
   asyncHandler(deleteStaffPost)
 );
 

@@ -1,14 +1,23 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
-const { authenticate, isAdminOrSuperAdmin } = require("../middleware/auth");
+const { authenticate } = require("../middleware/auth");
+const authorize = require("../middleware/authorize");
 const cashbookEntryService = require("../services/cashbookEntryService");
-const { buildSchoolClause, getEffectiveSchoolId } = require("../utils/tenantScope");
+const {
+  buildSchoolClause,
+  getEffectiveSchoolId,
+  resolveSchoolScope,
+} = require("../utils/tenantScope");
 
-router.get("/", authenticate, async (req, res) => {
+router.get("/", authenticate, authorize("dashboard.summary.read"), async (req, res) => {
   try {
-    const schoolId = getEffectiveSchoolId(req);
-    const { role } = req.user;
+    const scope = resolveSchoolScope(req, res);
+    if (!scope) {
+      return;
+    }
+
+    const { schoolId, role } = scope;
 
     const studentParams = [];
     const studentSchoolClause = buildSchoolClause(
@@ -73,7 +82,7 @@ router.get("/", authenticate, async (req, res) => {
       `
       SELECT
         COUNT(*) FILTER (
-          WHERE status = 'Present'
+          WHERE status IN ('Present', 'Late')
         ) * 100.0 /
         NULLIF(COUNT(*), 0)
         AS attendance_percentage
@@ -102,7 +111,7 @@ router.get("/", authenticate, async (req, res) => {
   }
 });
 
-router.get("/finance", authenticate, isAdminOrSuperAdmin, async (req, res) => {
+router.get("/finance", authenticate, authorize("dashboard.finance.read"), async (req, res) => {
   try {
     const schoolId = getEffectiveSchoolId(req);
     const role = req.user?.role;

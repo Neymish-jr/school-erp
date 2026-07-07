@@ -9,10 +9,8 @@ const {
 
 const router = express.Router();
 
-const {
-  authenticate,
-  isAdminLike
-} = require("../middleware/auth");
+const { authenticate } = require("../middleware/auth");
+const authorize = require("../middleware/authorize");
 
 const upload = multer({
   dest: "uploads/",
@@ -21,7 +19,7 @@ const upload = multer({
 router.post(
   "/",
   authenticate,
-  isAdminLike,
+  authorize("student.import.execute"),
   upload.single("file"),
   importStudents
 );
@@ -29,14 +27,14 @@ router.post(
 router.get(
   "/template",
   authenticate,
-  isAdminLike,
+  authorize("student.import.template"),
   downloadTemplate
 );
 
 router.get(
   "/export",
   authenticate,
-  isAdminLike,
+  authorize("student.export.execute"),
   exportStudents
 );
 

@@ -4,6 +4,8 @@ const { FINANCIAL_YEAR_STATUS } = require("../constants/financialYearStatus");
 const {
   ACTIVITY_STATUS,
   ALLOCATED_ACTIVITY_STATUSES,
+  EDITABLE_ACTIVITY_STATUSES,
+  SUBMITTABLE_ACTIVITY_STATUSES,
   normalizeActivityStatus,
 } = require("../constants/activityStatus");
 const { COMMITTED_STATUSES } = require("../constants/expenseRequestStatus");
@@ -98,6 +100,119 @@ const assertBudgetAllocationForActivity = async (
   }
 
   return row;
+};
+
+const getActivityAllocationAvailability = async (
+  budgetAllocationId,
+  schoolId,
+  excludeActivityId = null,
+  client = pool
+) => {
+  if (budgetAllocationId == null) {
+    return null;
+  }
+
+  await assertBudgetAllocationForActivity(budgetAllocationId, schoolId, client);
+
+  const params = [budgetAllocationId, schoolId];
+  let excludeClause = "";
+
+  if (excludeActivityId != null) {
+    params.push(excludeActivityId);
+    excludeClause = `AND a.id <> $${params.length}`;
+  }
+
+  const allocatedStatuses = ALLOCATED_ACTIVITY_STATUSES.map((status) => `'${status}'`).join(", ");
+  const expenseStatuses = COMMITTED_STATUSES.map((status) => `'${status}'`).join(", ");
+
+  const result = await client.query(
+    `
+    SELECT
+      ba.allocated_amount,
+      COALESCE((
+        SELECT SUM(er.requested_amount)
+        FROM expense_requests er
+        WHERE er.budget_allocation_id = ba.id
+          AND er.school_id = ba.school_id
+          AND er.status IN (${expenseStatuses})
+      ), 0) AS expense_committed,
+      COALESCE((
+        SELECT SUM(a.allocated_budget)
+        FROM activities a
+        WHERE a.budget_allocation_id = ba.id
+          AND a.school_id = ba.school_id
+          AND a.status IN (${allocatedStatuses})
+          ${excludeClause}
+      ), 0) AS activity_committed
+    FROM budget_allocations ba
+    WHERE ba.id = $1
+      AND ba.school_id = $2
+    `,
+    params
+  );
+
+  const row = result.rows[0];
+  const allocatedAmount = Number(row.allocated_amount);
+  const expenseCommitted = Number(row.expense_committed);
+  const activityCommitted = Number(row.activity_committed);
+  const availableBalance = allocatedAmount - expenseCommitted - activityCommitted;
+
+  return {
+    budget_allocation_id: budgetAllocationId,
+    allocated_amount: allocatedAmount,
+    expense_committed: expenseCommitted,
+    activity_committed: activityCommitted,
+    available_balance: availableBalance,
+  };
+};
+
+const assertActivityBudgetWithinAllocation = async (
+  budgetAllocationId,
+  schoolId,
+  allocatedBudget,
+  excludeActivityId = null,
+  client = pool
+) => {
+  if (budgetAllocationId == null) {
+    return null;
+  }
+
+  const availability = await getActivityAllocationAvailability(
+    budgetAllocationId,
+    schoolId,
+    excludeActivityId,
+    client
+  );
+
+  if (Number(allocatedBudget) > availability.available_balance) {
+    throw new AppError(
+      400,
+      `Allocated budget exceeds available allocation balance (₹${availability.available_balance.toFixed(2)} available)`
+    );
+  }
+
+  return availability;
+};
+
+const assertCanMutateOwnedActivity = (activity, userId, role, teacherId, actionLabel) => {
+  if (role !== "teacher") {
+    return;
+  }
+
+  const isOwner =
+    activity.created_by_user_id === userId ||
+    (teacherId != null &&
+      Number(activity.assigned_teacher_id) === Number(teacherId));
+
+  if (!isOwner) {
+    throw new AppError(403, `You can only ${actionLabel} your own activities`);
+  }
+};
+
+const assertActivityEditable = (activity) => {
+  if (!EDITABLE_ACTIVITY_STATUSES.includes(activity.status)) {
+    throw new AppError(400, "Only draft or rejected activities can be edited");
+  }
 };
 
 const assertActivityLinkForExpenseRequest = async ({
@@ -447,6 +562,11 @@ const createActivity = async ({
   budgetAllocationId = null,
 }) => {
   await assertBudgetAllocationForActivity(budgetAllocationId, schoolId);
+  await assertActivityBudgetWithinAllocation(
+    budgetAllocationId,
+    schoolId,
+    allocatedBudget
+  );
 
   const teacherCheck = await pool.query(
     `
@@ -499,23 +619,97 @@ const createActivity = async ({
   return { activity, requires_quotation: requiresQuotation };
 };
 
+const updateActivity = async ({
+  id,
+  schoolId,
+  userId,
+  role,
+  teacherId,
+  activityName,
+  description,
+  allocatedBudget,
+  assignedTeacherId,
+  budgetAllocationId = null,
+}) => {
+  const activity = await getActivityById({ id, schoolId, role, teacherId });
+
+  assertActivityEditable(activity);
+  assertCanMutateOwnedActivity(activity, userId, role, teacherId, "edit");
+
+  const resolvedTeacherId =
+    role === "teacher"
+      ? Number(teacherId)
+      : Number(assignedTeacherId ?? activity.assigned_teacher_id);
+
+  if (!Number.isFinite(resolvedTeacherId) || resolvedTeacherId <= 0) {
+    throw new AppError(400, "Assigned teacher is required");
+  }
+
+  await assertBudgetAllocationForActivity(budgetAllocationId, schoolId);
+  await assertActivityBudgetWithinAllocation(
+    budgetAllocationId,
+    schoolId,
+    allocatedBudget,
+    id
+  );
+
+  const teacherCheck = await pool.query(
+    `
+    SELECT id
+    FROM teachers
+    WHERE id = $1 AND school_id = $2
+    `,
+    [resolvedTeacherId, schoolId]
+  );
+
+  if (teacherCheck.rowCount === 0) {
+    throw new AppError(404, "Assigned teacher not found in your school");
+  }
+
+  await pool.query(
+    `
+    UPDATE activities
+    SET
+      activity_name = $1,
+      description = $2,
+      allocated_budget = $3,
+      assigned_teacher_id = $4,
+      budget_allocation_id = $5,
+      updated_at = NOW()
+    WHERE id = $6
+      AND school_id = $7
+      AND status = ANY($8::text[])
+    `,
+    [
+      activityName,
+      description,
+      allocatedBudget,
+      resolvedTeacherId,
+      budgetAllocationId,
+      id,
+      schoolId,
+      EDITABLE_ACTIVITY_STATUSES,
+    ]
+  );
+
+  return getActivityById({ id, schoolId, role, teacherId });
+};
+
 const submitActivity = async ({ id, schoolId, userId, role, teacherId }) => {
   const activity = await getActivityById({ id, schoolId, role, teacherId });
 
-  if (activity.status !== ACTIVITY_STATUS.DRAFT) {
-    throw new AppError(400, "Only draft activities can be submitted");
+  if (!SUBMITTABLE_ACTIVITY_STATUSES.includes(activity.status)) {
+    throw new AppError(400, "Only draft or rejected activities can be submitted");
   }
 
-  if (role === "teacher") {
-    const isOwner =
-      activity.created_by_user_id === userId ||
-      (teacherId != null &&
-        Number(activity.assigned_teacher_id) === Number(teacherId));
+  assertCanMutateOwnedActivity(activity, userId, role, teacherId, "submit");
 
-    if (!isOwner) {
-      throw new AppError(403, "You can only submit your own activities");
-    }
-  }
+  await assertActivityBudgetWithinAllocation(
+    activity.budget_allocation_id,
+    schoolId,
+    activity.allocated_budget,
+    id
+  );
 
   await pool.query(
     `
@@ -524,17 +718,20 @@ const submitActivity = async ({ id, schoolId, userId, role, teacherId }) => {
       status = $1,
       submitted_by_user_id = $2,
       submitted_at = NOW(),
+      rejection_remarks = NULL,
+      reviewed_by_user_id = NULL,
+      reviewed_at = NULL,
       updated_at = NOW()
     WHERE id = $3
       AND school_id = $4
-      AND status = $5
+      AND status = ANY($5::text[])
     `,
     [
       ACTIVITY_STATUS.SUBMITTED,
       userId,
       id,
       schoolId,
-      ACTIVITY_STATUS.DRAFT,
+      SUBMITTABLE_ACTIVITY_STATUSES,
     ]
   );
 
@@ -710,11 +907,14 @@ const uploadActivityFile = async ({
 module.exports = {
   assertBudgetAllocationForActivity,
   assertActivityLinkForExpenseRequest,
+  assertActivityBudgetWithinAllocation,
+  getActivityAllocationAvailability,
   listActivities,
   getActivityById,
   getActivityDashboard,
   getActivityTimeline,
   createActivity,
+  updateActivity,
   submitActivity,
   approveActivity,
   rejectActivity,

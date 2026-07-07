@@ -42,16 +42,36 @@ const getStockConfig = async (req, res) => {
   });
 };
 
+const buildListFilters = (req, res) => {
+  const scope = resolveSchoolScope(req, res);
+  if (!scope) {
+    return null;
+  }
+
+  return {
+    schoolId: scope.schoolId,
+    role: scope.role,
+    category: req.query.category || undefined,
+    itemName: req.query.item_name || undefined,
+    lowStockOnly: req.query.low_stock === "true",
+    page: req.query.page,
+    limit: req.query.limit,
+  };
+};
+
 const getStockDashboard = async (req, res) => {
   try {
-    const scope = resolveSchoolScope(req, res);
-    if (!scope) {
+    const filters = buildListFilters(req, res);
+    if (!filters) {
       return;
     }
 
     const data = await stockRegisterService.getStockDashboard({
-      schoolId: scope.schoolId,
-      role: scope.role,
+      schoolId: filters.schoolId,
+      role: filters.role,
+      category: filters.category,
+      itemName: filters.itemName,
+      lowStockOnly: filters.lowStockOnly,
     });
 
     return successResponse(res, {
@@ -65,22 +85,27 @@ const getStockDashboard = async (req, res) => {
 
 const getStockEntries = async (req, res) => {
   try {
-    const scope = resolveSchoolScope(req, res);
-    if (!scope) {
+    const filters = buildListFilters(req, res);
+    if (!filters) {
       return;
     }
 
-    const data = await stockRegisterService.listStockEntries({
-      schoolId: scope.schoolId,
-      role: scope.role,
-      category: req.query.category || undefined,
-      itemName: req.query.item_name || undefined,
-      lowStockOnly: req.query.low_stock === "true",
+    const result = await stockRegisterService.listStockEntries({
+      schoolId: filters.schoolId,
+      role: filters.role,
+      category: filters.category,
+      itemName: filters.itemName,
+      lowStockOnly: filters.lowStockOnly,
+      page: filters.page,
+      limit: filters.limit,
     });
 
-    return successResponse(res, {
+    return res.status(200).json({
+      success: true,
       message: "Stock entries fetched successfully",
-      data,
+      data: result.data,
+      pagination: result.pagination,
+      error: null,
     });
   } catch (err) {
     return handleServiceError(res, err);
@@ -152,6 +177,9 @@ const getStockIssues = async (req, res) => {
     const data = await stockRegisterService.listStockIssues({
       schoolId: scope.schoolId,
       role: scope.role,
+      stockEntryId: req.query.stock_entry_id ? Number(req.query.stock_entry_id) : undefined,
+      category: req.query.category || undefined,
+      itemName: req.query.item_name || undefined,
       limit: req.query.limit ? Number(req.query.limit) : 20,
     });
 
@@ -212,6 +240,7 @@ const getStockAuditLogs = async (req, res) => {
       role: scope.role,
       entityType: req.query.entity_type || undefined,
       entityId: req.query.entity_id ? Number(req.query.entity_id) : undefined,
+      stockEntryId: req.query.stock_entry_id ? Number(req.query.stock_entry_id) : undefined,
       limit: req.query.limit ? Number(req.query.limit) : 50,
     });
 

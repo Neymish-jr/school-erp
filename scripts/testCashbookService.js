@@ -219,6 +219,24 @@ const run = async () => {
     assert(Array.isArray(summary.monthly_totals), "Summary monthly totals");
     console.log("✓ Summary API");
 
+    const searchSummary = await cashbookEntryService.getCashbookSummary({
+      schoolId: SCHOOL_ID,
+      role: "admin",
+      financialYearId: fy.id,
+      search: "Cashbook test payment",
+    });
+    assert(Number(searchSummary.payment_count) >= 1, "Summary honors search filter");
+    assert(Number(searchSummary.total_outflow) >= 12000, "Summary search total_outflow");
+
+    const emptySearchSummary = await cashbookEntryService.getCashbookSummary({
+      schoolId: SCHOOL_ID,
+      role: "admin",
+      financialYearId: fy.id,
+      search: "no-matching-cashbook-term-xyz",
+    });
+    assert(Number(emptySearchSummary.payment_count) === 0, "Summary search with no matches");
+    console.log("✓ Summary search filter alignment");
+
     const exported = await cashbookEntryService.exportCashbookEntriesXlsx({
       schoolId: SCHOOL_ID,
       role: "admin",
@@ -227,6 +245,60 @@ const run = async () => {
     assert(Buffer.isBuffer(exported.buffer), "XLSX export returns buffer");
     assert(exported.filename.includes("Cashbook_"), "XLSX filename format");
     console.log("✓ XLSX export");
+
+    const { CASHBOOK_EXPORT_MAX_ROWS } = require("../constants/cashbookEntry");
+    assert(
+      Number.isFinite(CASHBOOK_EXPORT_MAX_ROWS) && CASHBOOK_EXPORT_MAX_ROWS > 0,
+      "Export max rows constant must be positive"
+    );
+
+    const draft2 = await expenseRequestService.createExpenseRequest({
+      schoolId: SCHOOL_ID,
+      userId: teacherUserId,
+      budgetAllocationId: allocation.id,
+      requestedAmount: 3000,
+      purpose: "Second cashbook export row",
+      vendorName: "Vendor CB2",
+    });
+    await expenseRequestService.submitExpenseRequest(
+      draft2.id,
+      SCHOOL_ID,
+      teacherUserId,
+      "teacher"
+    );
+    await expenseRequestService.approveExpenseRequest(draft2.id, SCHOOL_ID, adminUserId);
+    await expenseRequestService.markExpenseRequestPaid(draft2.id, SCHOOL_ID, adminUserId, {
+      paymentVoucherNo: "VCH-CB-002",
+      paymentTransactionId: "UTR-CB-002",
+    });
+
+    const previousMax = process.env.CASHBOOK_EXPORT_MAX_ROWS;
+    process.env.CASHBOOK_EXPORT_MAX_ROWS = "1";
+    delete require.cache[require.resolve("../constants/cashbookEntry")];
+    delete require.cache[require.resolve("../services/cashbookEntryService")];
+    const cashbookEntryServiceReloaded = require("../services/cashbookEntryService");
+
+    let exportBlocked = false;
+    try {
+      await cashbookEntryServiceReloaded.exportCashbookEntriesXlsx({
+        schoolId: SCHOOL_ID,
+        role: "admin",
+        financialYearId: fy.id,
+      });
+    } catch (err) {
+      exportBlocked = err.statusCode === 413;
+    }
+
+    if (previousMax === undefined) {
+      delete process.env.CASHBOOK_EXPORT_MAX_ROWS;
+    } else {
+      process.env.CASHBOOK_EXPORT_MAX_ROWS = previousMax;
+    }
+    delete require.cache[require.resolve("../constants/cashbookEntry")];
+    delete require.cache[require.resolve("../services/cashbookEntryService")];
+
+    assert(exportBlocked, "Export blocked when row count exceeds max");
+    console.log("✓ Export max row guard");
 
     const dashboardMetrics = await cashbookEntryService.getFinanceDashboardMetrics(
       SCHOOL_ID,

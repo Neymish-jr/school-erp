@@ -1,15 +1,14 @@
 const pool = require("../db");
 const studentResultsSchema = require("../validators/studentResultsValidator");
 const { successResponse, errorResponse } = require("../utils/response");
-
-const buildSchoolClause = (role, schoolId, params, tableAlias = "students") => {
-  if (role !== "super_admin" && schoolId != null) {
-    params.push(schoolId);
-    return ` AND ${tableAlias}.school_id = $${params.length}`;
-  }
-
-  return "";
-};
+const {
+  buildSchoolClause,
+  resolveSchoolScope,
+} = require("../utils/tenantScope");
+const {
+  calculatePercentage,
+  getResultStatus,
+} = require("../constants/assessmentResults");
 
 const verifyStudentInSchool = async (studentId, role, schoolId) => {
   const params = [studentId];
@@ -29,21 +28,6 @@ const verifyStudentInSchool = async (studentId, role, schoolId) => {
   return result.rowCount > 0;
 };
 
-const calculatePercentage = (marksObtained, maxMarks) => {
-  const obtained = Number(marksObtained);
-  const total = Number(maxMarks);
-
-  if (!Number.isFinite(obtained) || !Number.isFinite(total) || total <= 0) {
-    return 0;
-  }
-
-  return Math.max(0, Math.min(100, (obtained / total) * 100));
-};
-
-const getResultStatus = (percentage) => (
-  percentage >= 40 ? "Pass" : "Fail"
-);
-
 const createStudentResult = async (req, res) => {
   const { error } = studentResultsSchema.validate(req.body);
 
@@ -56,7 +40,11 @@ const createStudentResult = async (req, res) => {
   }
 
   try {
-    const { school_id: schoolId, role } = req.user;
+    const scope = resolveSchoolScope(req, res);
+    if (!scope) {
+      return;
+    }
+    const { schoolId, role } = scope;
     const {
       student_id,
       subject_id,
@@ -160,7 +148,11 @@ const createStudentResult = async (req, res) => {
 
 const getStudentResults = async (req, res) => {
   try {
-    const { school_id: schoolId, role } = req.user;
+    const scope = resolveSchoolScope(req, res);
+    if (!scope) {
+      return;
+    }
+    const { schoolId, role } = scope;
     const params = [];
     const schoolClause = buildSchoolClause(role, schoolId, params, "students");
 

@@ -34,7 +34,7 @@ const getDashboardStats = async (req, res) => {
       `
       SELECT
         COUNT(*) FILTER (
-          WHERE status = 'Present'
+          WHERE status IN ('Present', 'Late')
         ) AS present,
 
         COUNT(*) AS total

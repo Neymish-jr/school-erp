@@ -1,13 +1,12 @@
 const pool = require("../db");
-
-const buildSchoolClause = (role, schoolId, params, tableAlias = "s") => {
-  if (role !== "super_admin" && schoolId != null) {
-    params.push(schoolId);
-    return ` AND ${tableAlias}.school_id = $${params.length}`;
-  }
-
-  return "";
-};
+const {
+  buildSchoolClause,
+  resolveSchoolScope,
+} = require("../utils/tenantScope");
+const {
+  isPassingPercentage,
+  PASS_MARK_PERCENTAGE,
+} = require("../constants/assessmentResults");
 
 const parseStudentId = (studentId) => {
   const parsedStudentId = Number(studentId);
@@ -19,11 +18,70 @@ const parseStudentId = (studentId) => {
   return parsedStudentId;
 };
 
-// RUN PROMOTION LOGIC
+const normalizeAssessmentRow = (row) => ({
+  marks_obtained: Number(row.marks_obtained),
+  max_marks: Number(row.max_marks),
+});
+
+const fetchStudentAssessmentRows = async (studentId, role, schoolId) => {
+  const studentResultsParams = [studentId];
+  const studentResultsClause = buildSchoolClause(
+    role,
+    schoolId,
+    studentResultsParams,
+    "students"
+  );
+
+  const studentResults = await pool.query(
+    `
+    SELECT
+      sr.marks_obtained,
+      sr.max_marks
+    FROM student_results sr
+    JOIN students ON students.id = sr.student_id
+    WHERE sr.student_id = $1
+    ${studentResultsClause}
+    `,
+    studentResultsParams
+  );
+
+  if (studentResults.rows.length > 0) {
+    return {
+      source: "student_results",
+      rows: studentResults.rows.map(normalizeAssessmentRow),
+    };
+  }
+
+  const marksParams = [studentId];
+  const marksClause = buildSchoolClause(role, schoolId, marksParams, "students");
+
+  const marksResult = await pool.query(
+    `
+    SELECT
+      m.marks_obtained,
+      m.total_marks AS max_marks
+    FROM marks m
+    JOIN students ON students.id = m.student_id
+    WHERE m.student_id = $1
+    ${marksClause}
+    `,
+    marksParams
+  );
+
+  return {
+    source: "marks",
+    rows: marksResult.rows.map(normalizeAssessmentRow),
+  };
+};
+
 const processPromotion = async (req, res) => {
   try {
     const { studentId } = req.params;
-    const { school_id: schoolId, role } = req.user;
+    const scope = resolveSchoolScope(req, res);
+    if (!scope) {
+      return;
+    }
+    const { schoolId, role } = scope;
     const parsedStudentId = parseStudentId(studentId);
 
     if (parsedStudentId == null) {
@@ -50,28 +108,22 @@ const processPromotion = async (req, res) => {
       return res.status(404).send("Student not found");
     }
 
-    const marksParams = [parsedStudentId];
-    const marksSchoolClause = buildSchoolClause(role, schoolId, marksParams);
-
-    const marksResult = await pool.query(
-      `
-      SELECT
-        m.marks_obtained,
-        m.max_marks
-      FROM marks m
-      JOIN students s ON s.id = m.student_id
-      WHERE m.student_id = $1
-      ${marksSchoolClause}
-      `,
-      marksParams
+    const assessment = await fetchStudentAssessmentRows(
+      parsedStudentId,
+      role,
+      schoolId
     );
 
-    if (marksResult.rows.length === 0) {
+    if (assessment.rows.length === 0) {
       return res.status(400).send("No marks found");
     }
 
     const attendanceParams = [parsedStudentId];
-    const attendanceSchoolClause = buildSchoolClause(role, schoolId, attendanceParams);
+    const attendanceSchoolClause = buildSchoolClause(
+      role,
+      schoolId,
+      attendanceParams
+    );
 
     const attendanceResult = await pool.query(
       `
@@ -99,21 +151,21 @@ const processPromotion = async (req, res) => {
     let totalMax = 0;
     let failedSubjects = 0;
 
-    marksResult.rows.forEach((mark) => {
+    assessment.rows.forEach((mark) => {
       const obtained = Number(mark.marks_obtained);
       const max = Number(mark.max_marks);
 
       totalObtained += obtained;
       totalMax += max;
 
-      const percentage = (obtained / max) * 100;
+      const percentage = max === 0 ? 0 : (obtained / max) * 100;
 
-      if (percentage < 40) {
+      if (!isPassingPercentage(percentage)) {
         failedSubjects++;
       }
     });
 
-    const overallPercentage = (totalObtained / totalMax) * 100;
+    const overallPercentage = totalMax === 0 ? 0 : (totalObtained / totalMax) * 100;
 
     let status = "Promoted";
 
@@ -123,15 +175,17 @@ const processPromotion = async (req, res) => {
       status = "Failed";
     } else if (failedSubjects > 0) {
       status = "Compartment";
-    } else if (overallPercentage < 40) {
+    } else if (!isPassingPercentage(overallPercentage)) {
       status = "Failed";
     }
 
     res.json({
       student_id: parsedStudentId,
+      assessment_source: assessment.source,
       attendance_percentage: attendancePercentage.toFixed(2),
       overall_percentage: overallPercentage.toFixed(2),
       failed_subjects: failedSubjects,
+      pass_mark_percentage: PASS_MARK_PERCENTAGE,
       final_status: status,
     });
   } catch (err) {
@@ -148,4 +202,5 @@ module.exports = {
   processPromotion,
   buildSchoolClause,
   parseStudentId,
+  fetchStudentAssessmentRows,
 };

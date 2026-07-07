@@ -1,9 +1,24 @@
 const pool = require("../db");
 const { successResponse, errorResponse } = require("../utils/response");
+const { resolveSchoolIdForWrite } = require("../utils/tenantScope");
 const {
   fetchTeacherForAssignment,
   getTeacherAssignmentEligibility,
 } = require("../utils/teacherAssignmentGuard");
+const {
+  recordDesignationAssigned,
+  recordDesignationRelieved,
+} = require("../services/staffServiceHistoryRecorder");
+
+const ACTIVE_TEACHER_ASSIGNMENT_SQL = `
+  AND EXISTS (
+    SELECT 1
+    FROM teachers t_active
+    WHERE t_active.id = tspa.teacher_id
+      AND t_active.school_id = tspa.school_id
+      AND t_active.status = 'active'
+  )
+`;
 
 const getBaseAssignmentQuery = () => `
   SELECT
@@ -12,6 +27,7 @@ const getBaseAssignmentQuery = () => `
     tspa.teacher_id,
     t.teacher_name,
     t.designation AS teacher_designation,
+    t.status AS teacher_status,
     tspa.staff_post_id,
     sp.post_name,
     sp.post_code,
@@ -32,7 +48,10 @@ const getBaseAssignmentQuery = () => `
 
 const getAssignments = async (req, res) => {
   try {
-    const { school_id } = req.user;
+    const school_id = resolveSchoolIdForWrite(req, res);
+    if (school_id == null) {
+      return;
+    }
     const { teacher_id, staff_post_id, is_active } = req.query;
     const params = [school_id];
     let query = `${getBaseAssignmentQuery()} WHERE tspa.school_id = $1`;
@@ -70,7 +89,10 @@ const getAssignments = async (req, res) => {
 
 const getAssignmentsForTeacher = async (req, res) => {
   try {
-    const { school_id } = req.user;
+    const school_id = resolveSchoolIdForWrite(req, res);
+    if (school_id == null) {
+      return;
+    }
     const { teacherId } = req.params;
 
     // Verify teacher belongs to school
@@ -105,7 +127,10 @@ const getAssignmentsForTeacher = async (req, res) => {
 
 const getCurrentAssignmentForTeacher = async (req, res) => {
   try {
-    const { school_id } = req.user;
+    const school_id = resolveSchoolIdForWrite(req, res);
+    if (school_id == null) {
+      return;
+    }
     const { teacherId } = req.params;
 
     // Verify teacher belongs to school
@@ -141,7 +166,10 @@ const getCurrentAssignmentForTeacher = async (req, res) => {
 
 const getAssignmentsForStaffPost = async (req, res) => {
   try {
-    const { school_id } = req.user;
+    const school_id = resolveSchoolIdForWrite(req, res);
+    if (school_id == null) {
+      return;
+    }
     const { staffPostId } = req.params;
 
     // Verify staff post belongs to school
@@ -176,7 +204,10 @@ const getAssignmentsForStaffPost = async (req, res) => {
 
 const getVacantStaffPosts = async (req, res) => {
   try {
-    const { school_id } = req.user;
+    const school_id = resolveSchoolIdForWrite(req, res);
+    if (school_id == null) {
+      return;
+    }
 
     const query = `
       SELECT sp.id, sp.post_name, sp.post_code, sp.staff_category
@@ -190,6 +221,7 @@ const getVacantStaffPosts = async (req, res) => {
           WHERE tspa.staff_post_id = sp.id
             AND tspa.school_id = $1
             AND tspa.is_active = TRUE
+            ${ACTIVE_TEACHER_ASSIGNMENT_SQL}
         ) < sp.sanctioned_count
       ORDER BY sp.post_name ASC
     `;
@@ -211,7 +243,11 @@ const getVacantStaffPosts = async (req, res) => {
 
 const createAssignment = async (req, res) => {
   try {
-    const { school_id, id: assigned_by_user_id } = req.user;
+    const school_id = resolveSchoolIdForWrite(req, res);
+    if (school_id == null) {
+      return;
+    }
+    const { id: assigned_by_user_id } = req.user;
     const { teacher_id, staff_post_id, assignment_start_date, remarks } = req.body;
 
     const teacherRow = await fetchTeacherForAssignment(pool, teacher_id, school_id);
@@ -252,7 +288,9 @@ const createAssignment = async (req, res) => {
 
     // 4. Enforce sanctioned strength — allow multiple active assignments up to sanctioned_count
     const activeStaffPostAssignmentCount = await pool.query(
-      "SELECT COUNT(*) FROM teacher_staff_post_assignments WHERE staff_post_id = $1 AND school_id = $2 AND is_active = TRUE",
+      `SELECT COUNT(*) FROM teacher_staff_post_assignments tspa
+       WHERE tspa.staff_post_id = $1 AND tspa.school_id = $2 AND tspa.is_active = TRUE
+       ${ACTIVE_TEACHER_ASSIGNMENT_SQL}`,
       [staff_post_id, school_id]
     );
     const activeAssignmentsForPost = Number(activeStaffPostAssignmentCount.rows[0].count) || 0;
@@ -266,26 +304,51 @@ const createAssignment = async (req, res) => {
     }
 
     // 5. Insert new assignment
-    const insertQuery = `
+    const client = await pool.connect();
+
+    try {
+      await client.query("BEGIN");
+
+      const insertQuery = `
       INSERT INTO teacher_staff_post_assignments
         (school_id, teacher_id, staff_post_id, assignment_start_date, remarks, assigned_by_user_id)
       VALUES ($1, $2, $3, $4, $5, $6)
       RETURNING *
     `;
-    const result = await pool.query(insertQuery, [
-      school_id,
-      teacher_id,
-      staff_post_id,
-      assignment_start_date,
-      remarks || null,
-      assigned_by_user_id,
-    ]);
+      const result = await client.query(insertQuery, [
+        school_id,
+        teacher_id,
+        staff_post_id,
+        assignment_start_date,
+        remarks || null,
+        assigned_by_user_id,
+      ]);
 
-    return successResponse(res, {
-      message: "Teacher staff post assigned successfully",
-      data: result.rows[0],
-      status: 201,
-    });
+      const assignment = result.rows[0];
+
+      await recordDesignationAssigned(client, {
+        school_id,
+        teacher_id,
+        staff_post_id,
+        staff_post_assignment_id: assignment.id,
+        effective_date: assignment.assignment_start_date,
+        recorded_by_user_id: assigned_by_user_id,
+        remarks,
+      });
+
+      await client.query("COMMIT");
+
+      return successResponse(res, {
+        message: "Teacher staff post assigned successfully",
+        data: assignment,
+        status: 201,
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
   } catch (err) {
     console.error(err);
     // Catch specific PostgreSQL unique constraint violation for robust error handling
@@ -308,34 +371,63 @@ const createAssignment = async (req, res) => {
 
 const relieveAssignment = async (req, res) => {
   try {
-    const { school_id } = req.user;
-    const { id } = req.params;
-    const { assignment_end_date } = req.body; // Expect assignment_end_date from body
-
-    const result = await pool.query(
-      `
-      UPDATE teacher_staff_post_assignments
-      SET is_active = FALSE,
-          assignment_end_date = $1,
-          updated_at = NOW()
-      WHERE id = $2 AND school_id = $3 AND is_active = TRUE
-      RETURNING *
-      `,
-      [assignment_end_date, id, school_id]
-    );
-
-    if (result.rowCount === 0) {
-      return errorResponse(res, {
-        message: "Active assignment not found or already relieved",
-        error: "Not found or already inactive",
-        status: 404,
-      });
+    const school_id = resolveSchoolIdForWrite(req, res);
+    if (school_id == null) {
+      return;
     }
+    const { id } = req.params;
+    const { assignment_end_date } = req.body;
+    const client = await pool.connect();
 
-    return successResponse(res, {
-      message: "Teacher relieved from staff post successfully",
-      data: result.rows[0],
-    });
+    try {
+      await client.query("BEGIN");
+
+      const result = await client.query(
+        `
+        UPDATE teacher_staff_post_assignments
+        SET is_active = FALSE,
+            assignment_end_date = $1,
+            updated_at = NOW()
+        WHERE id = $2 AND school_id = $3 AND is_active = TRUE
+        RETURNING *
+        `,
+        [assignment_end_date, id, school_id]
+      );
+
+      if (result.rowCount === 0) {
+        await client.query("ROLLBACK");
+        return errorResponse(res, {
+          message: "Active assignment not found or already relieved",
+          error: "Not found or already inactive",
+          status: 404,
+        });
+      }
+
+      const assignment = result.rows[0];
+
+      await recordDesignationRelieved(client, {
+        school_id,
+        teacher_id: assignment.teacher_id,
+        staff_post_id: assignment.staff_post_id,
+        staff_post_assignment_id: assignment.id,
+        effective_date: assignment.assignment_start_date,
+        end_date: assignment.assignment_end_date,
+        recorded_by_user_id: req.user?.id || null,
+        remarks: assignment.remarks,
+      });
+
+      await client.query("COMMIT");
+
+      return successResponse(res, {
+        message: "Teacher relieved from staff post successfully",
+        data: assignment,
+      });
+    } catch (err) {
+      await client.query("ROLLBACK");
+      throw err;
+    } finally {
+      client.release();
+    }
   } catch (err) {
     console.error(err);
     return errorResponse(res, {

@@ -1,10 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const pool = require("../db");
-const {
-  authenticate,
-  isAdminLike
-} = require("../middleware/auth");
+const { authenticate } = require("../middleware/auth");
+const authorize = require("../middleware/authorize");
 const {
   validateRequest
 } = require("../middleware/validation");
@@ -13,13 +11,10 @@ const {
   expensePaymentVerificationSchema
 } = require("../validators/expenseRouteValidator");
 
-router.use(
-  authenticate,
-  isAdminLike
-);
-
 router.post(
   "/",
+  authenticate,
+  authorize("finance.expense_ledger.create"),
   validateRequest(expenseEntrySchema),
   async (req, res) => {
 
@@ -86,7 +81,11 @@ router.post(
 
 });
 
-router.get("/", async (req, res) => {
+router.get(
+  "/",
+  authenticate,
+  authorize("finance.expense_ledger.read"),
+  async (req, res) => {
 
   try {
 
@@ -116,7 +115,11 @@ router.get("/", async (req, res) => {
 
 });
 
-router.put("/:id/approve", async (req, res) => {
+router.put(
+  "/:id/approve",
+  authenticate,
+  authorize("finance.expense_ledger.approve"),
+  async (req, res) => {
 
   try {
 
@@ -147,6 +150,8 @@ router.put("/:id/approve", async (req, res) => {
 
 router.put(
   "/:id/verify-payment",
+  authenticate,
+  authorize("finance.expense_ledger.verify_payment"),
   validateRequest(expensePaymentVerificationSchema, { useTextResponse: true }),
   async (req, res) => {
 

@@ -3,8 +3,11 @@ const AppError = require("../utils/AppError");
 const {
   EXPENSE_REQUEST_STATUS,
   COMMITTED_STATUSES,
+  EDITABLE_EXPENSE_STATUSES,
+  SUBMITTABLE_EXPENSE_STATUSES,
 } = require("../constants/expenseRequestStatus");
 const { FINANCIAL_YEAR_STATUS } = require("../constants/financialYearStatus");
+const { ALLOCATED_ACTIVITY_STATUSES } = require("../constants/activityStatus");
 const { assertActivityLinkForExpenseRequest } = require("./activityService");
 const quotationService = require("./quotationService");
 
@@ -88,6 +91,10 @@ const getAllocationBalance = async (
     params.push(excludeRequestId);
   }
 
+  const schoolClause = schoolId != null ? "AND ba.school_id = $2" : "";
+  const allocationParams = schoolId != null ? [budgetAllocationId, schoolId] : [budgetAllocationId];
+  const allocatedStatuses = ALLOCATED_ACTIVITY_STATUSES.map((status) => `'${status}'`).join(", ");
+
   const allocationResult = await client.query(
     `
     SELECT
@@ -95,13 +102,20 @@ const getAllocationBalance = async (
       ba.school_id,
       ba.allocated_amount,
       ba.is_active,
-      fy.status AS financial_year_status
+      fy.status AS financial_year_status,
+      COALESCE((
+        SELECT SUM(a.allocated_budget)
+        FROM activities a
+        WHERE a.budget_allocation_id = ba.id
+          AND a.school_id = ba.school_id
+          AND a.status IN (${allocatedStatuses})
+      ), 0) AS activity_committed
     FROM budget_allocations ba
     INNER JOIN financial_years fy ON fy.id = ba.financial_year_id
     WHERE ba.id = $1
-      ${schoolId != null ? "AND ba.school_id = $2" : ""}
+      ${schoolClause}
     `,
-    schoolId != null ? [budgetAllocationId, schoolId] : [budgetAllocationId]
+    allocationParams
   );
 
   if (allocationResult.rowCount === 0) {
@@ -110,14 +124,17 @@ const getAllocationBalance = async (
 
   const allocation = allocationResult.rows[0];
   const committedResult = await client.query(committedQuery, params);
-  const committedAmount = Number(committedResult.rows[0].committed_amount);
+  const expenseCommitted = Number(committedResult.rows[0].committed_amount);
+  const activityCommitted = Number(allocation.activity_committed);
   const allocatedAmount = Number(allocation.allocated_amount);
+  const availableBalance = allocatedAmount - expenseCommitted - activityCommitted;
 
   return {
     budget_allocation_id: allocation.id,
     allocated_amount: allocatedAmount,
-    committed_amount: committedAmount,
-    available_balance: allocatedAmount - committedAmount,
+    committed_amount: expenseCommitted,
+    activity_committed_amount: activityCommitted,
+    available_balance: availableBalance,
     allocation_is_active: allocation.is_active,
     financial_year_status: allocation.financial_year_status,
   };
@@ -215,6 +232,7 @@ const getExpenseRequestById = async (id, schoolId = null, userId = null, role = 
   return {
     ...row,
     committed_amount: balance.committed_amount,
+    activity_committed_amount: balance.activity_committed_amount,
     available_balance: balance.available_balance,
     ...quotationMeta,
   };
@@ -411,12 +429,12 @@ const updateExpenseRequest = async ({
 }) => {
   const existing = await getExpenseRequestById(id, schoolId, userId, role);
 
-  if (existing.status !== EXPENSE_REQUEST_STATUS.DRAFT) {
-    throw new AppError(400, "Only draft expense requests can be edited");
+  if (!EDITABLE_EXPENSE_STATUSES.includes(existing.status)) {
+    throw new AppError(400, "Only draft or rejected expense requests can be edited");
   }
 
   if (role === "teacher" && existing.created_by_user_id !== userId) {
-    throw new AppError(403, "You can only edit your own draft expense requests");
+    throw new AppError(403, "You can only edit your own expense requests");
   }
 
   const resolvedActivityId =
@@ -438,6 +456,14 @@ const updateExpenseRequest = async ({
       client,
     });
 
+    await assertAllocationAvailableForRequest(
+      existing.budget_allocation_id,
+      schoolId,
+      requestedAmount,
+      client,
+      id
+    );
+
     await client.query(
       `
       UPDATE expense_requests
@@ -452,7 +478,7 @@ const updateExpenseRequest = async ({
         updated_at = NOW()
       WHERE id = $8
         AND school_id = $9
-        AND status = $10
+        AND status = ANY($10::text[])
       `,
       [
         resolvedActivityId,
@@ -464,7 +490,7 @@ const updateExpenseRequest = async ({
         remarks || null,
         id,
         schoolId,
-        EXPENSE_REQUEST_STATUS.DRAFT,
+        EDITABLE_EXPENSE_STATUSES,
       ]
     );
 
@@ -510,12 +536,12 @@ const deleteExpenseRequest = async (id, schoolId, userId, role) => {
 const submitExpenseRequest = async (id, schoolId, userId, role) => {
   const existing = await getExpenseRequestById(id, schoolId, userId, role);
 
-  if (existing.status !== EXPENSE_REQUEST_STATUS.DRAFT) {
-    throw new AppError(400, "Only draft expense requests can be submitted");
+  if (!SUBMITTABLE_EXPENSE_STATUSES.includes(existing.status)) {
+    throw new AppError(400, "Only draft or rejected expense requests can be submitted");
   }
 
   if (role === "teacher" && existing.created_by_user_id !== userId) {
-    throw new AppError(403, "You can only submit your own draft expense requests");
+    throw new AppError(403, "You can only submit your own expense requests");
   }
 
   const client = await pool.connect();
@@ -548,17 +574,20 @@ const submitExpenseRequest = async (id, schoolId, userId, role) => {
         status = $1,
         submitted_by_user_id = $2,
         submitted_at = NOW(),
+        reviewed_by_user_id = NULL,
+        reviewed_at = NULL,
+        rejection_remarks = NULL,
         updated_at = NOW()
       WHERE id = $3
         AND school_id = $4
-        AND status = $5
+        AND status = ANY($5::text[])
       `,
       [
         EXPENSE_REQUEST_STATUS.PENDING,
         userId,
         id,
         schoolId,
-        EXPENSE_REQUEST_STATUS.DRAFT,
+        SUBMITTABLE_EXPENSE_STATUSES,
       ]
     );
 

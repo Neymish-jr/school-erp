@@ -28,9 +28,17 @@ const validateRegister = [
   }
 ];
 
-const validateRequest = (schema, options = {}) => {
+const validateRequest = (schema, sourceOrOptions = "body") => {
+  const source =
+    typeof sourceOrOptions === "string" ? sourceOrOptions : "body";
+  const options =
+    typeof sourceOrOptions === "object" && sourceOrOptions !== null
+      ? sourceOrOptions
+      : {};
+
   return (req, res, next) => {
-    const { error } = schema.validate(req.body);
+    const payload = source === "query" ? req.query : req.body;
+    const { error } = schema.validate(payload);
 
     if (error) {
       const message = error.details[0].message;
@@ -40,7 +48,7 @@ const validateRequest = (schema, options = {}) => {
       }
 
       return res.status(400).json({
-        error: message
+        error: message,
       });
     }
 

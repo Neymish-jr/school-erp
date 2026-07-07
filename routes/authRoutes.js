@@ -14,8 +14,8 @@ const {
 
 const {
   authenticate,
-  isSuperAdmin
 } = require("../middleware/auth");
+const authorize = require("../middleware/authorize");
 
 const loginSchema = require("../validators/loginValidator");
 const asyncHandler = require("../middleware/asyncHandler");
@@ -24,7 +24,7 @@ const asyncHandler = require("../middleware/asyncHandler");
 router.post(
   "/register",
   authenticate,
-  isSuperAdmin,
+  authorize("user.register"),
   validateRegister,
   registerUser
 );

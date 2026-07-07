@@ -2,15 +2,18 @@ const Joi = require("joi");
 const { TEACHER_STATUSES } = require("../constants/teacherStatus");
 
 const teacherSchema = Joi.object({
-
   teacher_name: Joi.string().trim().required(),
 
-  designation: Joi.string().trim().required(),
+  email: Joi.string().trim().email().required(),
 
   phone: Joi.string()
     .length(10)
     .pattern(/^[0-9]+$/)
     .required(),
+
+  subject: Joi.string().trim().required(),
+
+  qualification: Joi.string().trim().required(),
 
   age: Joi.number()
     .min(18)
@@ -21,8 +24,9 @@ const teacherSchema = Joi.object({
     .valid("Male", "Female", "Other")
     .required(),
 
-  employee_code: Joi.string().trim().max(50).allow(null, "").optional(),
+  designation: Joi.string().trim().allow("", null).optional(),
 
+  employee_code: Joi.string().trim().max(50).allow(null, "").optional(),
 });
 
 const teacherUpdateSchema = Joi.object({
@@ -33,7 +37,7 @@ const teacherUpdateSchema = Joi.object({
   qualification: Joi.string().trim().allow("", null),
   gender: Joi.string().valid("Male", "Female", "Other"),
   status: Joi.string().valid(...TEACHER_STATUSES),
-  designation: Joi.string().trim(),
+  designation: Joi.string().trim().allow("", null),
   age: Joi.number().min(18).max(65),
   employee_code: Joi.string().trim().max(50).allow(null, ""),
 }).min(1);

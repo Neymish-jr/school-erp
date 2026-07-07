@@ -2,29 +2,11 @@ const pool = require("../db");
 const classSchema = require("../validators/classValidator");
 const { successResponse, errorResponse } = require("../utils/response");
 
-const buildSchoolClause = (role, schoolId, params) => {
-  if (role !== "super_admin" && schoolId != null) {
-    params.push(schoolId);
-    return ` AND school_id = $${params.length}`;
-  }
-
-  return "";
-};
-
-const resolveSchoolIdForWrite = (req, res) => {
-  const { school_id: schoolId } = req.user;
-
-  if (schoolId == null) {
-    errorResponse(res, {
-      message: "School context is required for this operation",
-      error: "Missing school_id",
-      status: 400,
-    });
-    return null;
-  }
-
-  return schoolId;
-};
+const {
+  buildSchoolClause,
+  resolveSchoolIdForWrite,
+  resolveSchoolScope,
+} = require("../utils/tenantScope");
 
 // CREATE CLASS
 const createClass = async (req, res) => {
@@ -76,9 +58,13 @@ const createClass = async (req, res) => {
 // GET ALL CLASSES
 const getClasses = async (req, res) => {
   try {
-    const { school_id: schoolId, role } = req.user;
+    const scope = resolveSchoolScope(req, res);
+    if (!scope) {
+      return;
+    }
+    const { schoolId, role } = scope;
     const params = [];
-    const schoolClause = buildSchoolClause(role, schoolId, params);
+    const schoolClause = buildSchoolClause(role, schoolId, params, "classes");
 
     const result = await pool.query(
       `

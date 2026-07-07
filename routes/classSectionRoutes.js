@@ -1,7 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../middleware/asyncHandler");
-const { authenticate, isAdminLike } = require("../middleware/auth");
+const { authenticate } = require("../middleware/auth");
+const authorize = require("../middleware/authorize");
 const { validateRequest } = require("../middleware/validation");
 const classSectionSchema = require("../validators/classSectionValidator");
 
@@ -12,21 +13,26 @@ const {
   deleteClassSection,
 } = require("../controllers/classSectionController");
 
-router.get("/", authenticate, asyncHandler(getClassSections));
+router.get("/", authenticate, authorize("class_section.read"), asyncHandler(getClassSections));
 router.post(
   "/",
   authenticate,
-  isAdminLike,
+  authorize("class_section.create"),
   validateRequest(classSectionSchema),
   asyncHandler(createClassSection)
 );
 router.put(
   "/:id",
   authenticate,
-  isAdminLike,
+  authorize("class_section.update"),
   validateRequest(classSectionSchema),
   asyncHandler(updateClassSection)
 );
-router.delete("/:id", authenticate, isAdminLike, asyncHandler(deleteClassSection));
+router.delete(
+  "/:id",
+  authenticate,
+  authorize("class_section.delete"),
+  asyncHandler(deleteClassSection)
+);
 
 module.exports = router;

@@ -1,6 +1,11 @@
 const pool = require("../db");
 const { successResponse, errorResponse } = require("../utils/response");
 const {
+  getEffectiveSchoolId,
+  resolveSchoolIdForWrite,
+  resolveSchoolScope,
+} = require("../utils/tenantScope");
+const {
   fetchTeacherForAssignment,
   getTeacherAssignmentEligibility,
 } = require("../utils/teacherAssignmentGuard");
@@ -16,7 +21,7 @@ const shouldIncludeHistory = (query = {}) =>
   query.include_history === "true" || query.include_history === true;
 
 const buildSchoolClause = (role, schoolId, params, tableAlias = "t") => {
-  if (role !== "super_admin" && schoolId != null) {
+  if (schoolId != null) {
     params.push(schoolId);
     return `${tableAlias}.school_id = $${params.length}`;
   }
@@ -82,7 +87,11 @@ const buildAssignmentsQuery = (options = {}) => {
 
 const getAssignments = async (req, res) => {
   try {
-    const { school_id: schoolId, role } = req.user;
+    const scope = resolveSchoolScope(req, res);
+    if (!scope) {
+      return;
+    }
+    const { schoolId, role } = scope;
     const activeOnly = !shouldIncludeHistory(req.query);
     const { query, params } = buildAssignmentsQuery({
       activeOnly,
@@ -109,7 +118,10 @@ const getAssignments = async (req, res) => {
 const getAssignmentsByTeacherId = async (req, res) => {
   try {
     const { teacherId } = req.params;
-    const { school_id } = req.user;
+    const school_id = resolveSchoolIdForWrite(req, res);
+    if (school_id == null) {
+      return;
+    }
     const activeOnly = !shouldIncludeHistory(req.query);
 
     const teacherCheck = await pool.query(
@@ -186,7 +198,10 @@ const createAssignment = async (req, res) => {
   try {
     const { teacher_id, class_section_id, subject_id, assignment_start_date } =
       normalizeAssignmentPayload(req.body);
-    const schoolId = req.user?.school_id || null;
+    const schoolId = resolveSchoolIdForWrite(req, res);
+    if (schoolId == null) {
+      return;
+    }
 
     const teacherRow = await fetchTeacherForAssignment(pool, teacher_id, schoolId);
     const eligibility = getTeacherAssignmentEligibility(teacherRow);
@@ -268,7 +283,11 @@ const relieveAssignment = async (req, res) => {
   try {
     const { id } = req.params;
     const { assignment_end_date } = req.body;
-    const { school_id: schoolId, role } = req.user;
+    const scope = resolveSchoolScope(req, res);
+    if (!scope) {
+      return;
+    }
+    const { schoolId, role } = scope;
 
     const params = [assignment_end_date, id];
     const schoolCondition = buildSchoolClause(role, schoolId, params, "t");

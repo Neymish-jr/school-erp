@@ -5,9 +5,18 @@ const {
   errorResponse,
 } = require("../utils/response");
 const {
+  resolveSchoolIdForWrite,
+  resolveSchoolScope,
+  buildSchoolClause,
+} = require("../utils/tenantScope");
+const {
   fetchTeacherForAssignment,
   getTeacherAssignmentEligibility,
 } = require("../utils/teacherAssignmentGuard");
+const {
+  fetchClassSectionForSchool,
+  fetchSubjectForSchool,
+} = require("../utils/timetableSchoolGuard");
 
 const normalizeTimetablePayload = (
   payload = {}
@@ -70,11 +79,31 @@ const buildTimetableSelect = () => `
     ON tr.id = t.teacher_id
 `;
 
+const buildTeacherSchoolWhere = (role, schoolId, params) => {
+  const schoolClause = buildSchoolClause(
+    role,
+    schoolId,
+    params,
+    "tr"
+  );
+
+  if (!schoolClause) {
+    return "";
+  }
+
+  return `WHERE ${schoolClause.trim().replace(/^AND\s+/i, "")}`;
+};
+
 const createTimetable = async (
   req,
   res
 ) => {
   try {
+    const schoolId = resolveSchoolIdForWrite(req, res);
+    if (schoolId == null) {
+      return;
+    }
+
     const payload =
       normalizeTimetablePayload(
         req.body
@@ -83,7 +112,7 @@ const createTimetable = async (
     const teacherRow = await fetchTeacherForAssignment(
       pool,
       payload.teacher_id,
-      req.user?.school_id || null
+      schoolId
     );
     const eligibility = getTeacherAssignmentEligibility(teacherRow);
     if (!eligibility.eligible) {
@@ -91,6 +120,34 @@ const createTimetable = async (
         message: eligibility.message,
         error: eligibility.error,
         status: teacherRow ? 409 : 400,
+      });
+    }
+
+    const classSectionRow = await fetchClassSectionForSchool(
+      pool,
+      payload.class_section_id,
+      schoolId
+    );
+    if (!classSectionRow) {
+      return errorResponse(res, {
+        message:
+          "Class section not found in your school",
+        error: "Validation Error",
+        status: 400,
+      });
+    }
+
+    const subjectRow = await fetchSubjectForSchool(
+      pool,
+      payload.subject_id,
+      schoolId
+    );
+    if (!subjectRow) {
+      return errorResponse(res, {
+        message:
+          "Subject not found in your school",
+        error: "Validation Error",
+        status: 400,
       });
     }
 
@@ -223,21 +280,27 @@ const getAllTimetables = async (
   res
 ) => {
   try {
+    const scope = resolveSchoolScope(req, res);
+    if (!scope) {
+      return;
+    }
+
+    const params = [];
+    const whereSql = buildTeacherSchoolWhere(
+      scope.role,
+      scope.schoolId,
+      params
+    );
+
     const result = await pool.query(
       `
       ${buildTimetableSelect()}
 
-      ORDER BY
-      CAST(
-        REGEXP_REPLACE(
-          cs.class_name,
-          '[^0-9]',
-          '',
-          'g'
-        ) AS INTEGER
-      ) ASC,
+      ${whereSql}
 
+      ORDER BY
       cs.class_name ASC,
+      cs.section_name ASC,
 
       CASE t.day
         WHEN 'monday' THEN 1
@@ -250,7 +313,8 @@ const getAllTimetables = async (
       END,
 
       t.period_number ASC
-      `
+      `,
+      params
     );
 
     return successResponse(res, {
@@ -328,15 +392,30 @@ const deleteTimetable = async (
   res
 ) => {
   try {
+    const scope = resolveSchoolScope(req, res);
+    if (!scope) {
+      return;
+    }
+
     const { id } = req.params;
+    const params = [id];
+    const schoolClause = buildSchoolClause(
+      scope.role,
+      scope.schoolId,
+      params,
+      "tr"
+    );
 
     const result = await pool.query(
       `
-      DELETE FROM timetables
-      WHERE id = $1
-      RETURNING *
+      DELETE FROM timetables t
+      USING teachers tr
+      WHERE t.id = $1
+        AND t.teacher_id = tr.id
+        ${schoolClause}
+      RETURNING t.*
       `,
-      [id]
+      params
     );
 
     if (result.rowCount === 0) {

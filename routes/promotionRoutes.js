@@ -1,10 +1,8 @@
 const express = require("express");
 const router = express.Router();
 
-const {
-  authenticate,
-  isAdminLike
-} = require("../middleware/auth");
+const { authenticate } = require("../middleware/auth");
+const authorize = require("../middleware/authorize");
 
 const {
   processPromotion
@@ -13,7 +11,7 @@ const {
 router.get(
   "/:studentId",
   authenticate,
-  isAdminLike,
+  authorize("student.promotion.execute"),
   processPromotion
 );
 

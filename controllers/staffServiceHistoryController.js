@@ -1,5 +1,6 @@
 const pool = require("../db");
 const { successResponse, errorResponse } = require("../utils/response");
+const { resolveSchoolIdForWrite } = require("../utils/tenantScope");
 const {
   TRANSFER_EVENT_TYPES,
   DESIGNATION_EVENT_TYPES,
@@ -33,7 +34,10 @@ const parseListFilters = (query = {}) => {
 
 const getAssignments = async (req, res) => {
   try {
-    const { school_id } = req.user;
+    const school_id = resolveSchoolIdForWrite(req, res);
+    if (school_id == null) {
+      return;
+    }
     const filters = parseListFilters(req.query);
 
     if (req.query.teacher_id) {
@@ -64,7 +68,10 @@ const getAssignments = async (req, res) => {
 
 const getEventById = async (req, res) => {
   try {
-    const { school_id } = req.user;
+    const school_id = resolveSchoolIdForWrite(req, res);
+    if (school_id == null) {
+      return;
+    }
     const { id } = req.params;
 
     const result = await pool.query(
@@ -96,7 +103,10 @@ const getEventById = async (req, res) => {
 
 const getTeacherTimeline = async (req, res) => {
   try {
-    const { school_id } = req.user;
+    const school_id = resolveSchoolIdForWrite(req, res);
+    if (school_id == null) {
+      return;
+    }
     const { teacherId } = req.params;
     const filters = parseListFilters(req.query);
 
@@ -138,7 +148,10 @@ const getTeacherTimeline = async (req, res) => {
 
 const getTeacherServiceBook = async (req, res) => {
   try {
-    const { school_id } = req.user;
+    const school_id = resolveSchoolIdForWrite(req, res);
+    if (school_id == null) {
+      return;
+    }
     const { teacherId } = req.params;
 
     const teacher = await verifyTeacherInSchool(pool, teacherId, school_id);
@@ -161,19 +174,6 @@ const getTeacherServiceBook = async (req, res) => {
     const serviceBook = groupServiceBook(events);
     const tenure = calculateTenure(events, teacher);
 
-    console.log(
-      "[SERVICE BOOK RESPONSE]",
-      JSON.stringify(
-        {
-          teacherId,
-          totalEvents: events.length,
-          serviceBook,
-        },
-        null,
-        2
-      )
-    );
-
     return successResponse(res, {
       message: "Teacher service book fetched successfully",
       data: {
@@ -195,7 +195,10 @@ const getTeacherServiceBook = async (req, res) => {
 
 const getTeacherTransferHistory = async (req, res) => {
   try {
-    const { school_id } = req.user;
+    const school_id = resolveSchoolIdForWrite(req, res);
+    if (school_id == null) {
+      return;
+    }
     const { teacherId } = req.params;
 
     const teacher = await verifyTeacherInSchool(pool, teacherId, school_id);
@@ -234,7 +237,10 @@ const getTeacherTransferHistory = async (req, res) => {
 
 const getTeacherDesignationHistory = async (req, res) => {
   try {
-    const { school_id } = req.user;
+    const school_id = resolveSchoolIdForWrite(req, res);
+    if (school_id == null) {
+      return;
+    }
     const { teacherId } = req.params;
 
     const teacher = await verifyTeacherInSchool(pool, teacherId, school_id);
@@ -273,7 +279,10 @@ const getTeacherDesignationHistory = async (req, res) => {
 
 const getTeacherTenure = async (req, res) => {
   try {
-    const { school_id } = req.user;
+    const school_id = resolveSchoolIdForWrite(req, res);
+    if (school_id == null) {
+      return;
+    }
     const { teacherId } = req.params;
 
     const teacher = await verifyTeacherInSchool(pool, teacherId, school_id);

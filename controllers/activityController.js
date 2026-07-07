@@ -180,6 +180,81 @@ const createActivity = async (req, res) => {
   }
 };
 
+const updateActivity = async (req, res) => {
+  try {
+    const scope = getScopeContext(req, res);
+    if (!scope) {
+      return;
+    }
+
+    const { role, teacher_id: teacherId } = req.user;
+    let assignedTeacherId;
+
+    if (role === "teacher") {
+      if (teacherId == null) {
+        return errorResponse(res, {
+          message: "Teacher profile is required to update activities",
+          error: "Missing teacher_id",
+          status: 400,
+        });
+      }
+    } else if (req.body.assigned_teacher_id != null && req.body.assigned_teacher_id !== "") {
+      assignedTeacherId = Number(req.body.assigned_teacher_id);
+    }
+
+    const data = await activityService.updateActivity({
+      id: Number(req.params.id),
+      schoolId: scope.schoolId,
+      userId: scope.userId,
+      role: scope.role,
+      teacherId: scope.teacherId,
+      activityName: req.body.activity_name,
+      description: req.body.description,
+      allocatedBudget: Number(req.body.allocated_budget),
+      assignedTeacherId,
+      budgetAllocationId:
+        req.body.budget_allocation_id != null && req.body.budget_allocation_id !== ""
+          ? Number(req.body.budget_allocation_id)
+          : null,
+    });
+
+    return successResponse(res, {
+      message: "Activity updated successfully",
+      data,
+    });
+  } catch (err) {
+    return handleServiceError(res, err);
+  }
+};
+
+const getActivityAllocationAvailability = async (req, res) => {
+  try {
+    const scope = getScopeContext(req, res);
+    if (!scope) {
+      return;
+    }
+
+    const allocationId = Number(req.params.allocationId);
+    const excludeActivityId =
+      req.query.exclude_activity_id != null && req.query.exclude_activity_id !== ""
+        ? Number(req.query.exclude_activity_id)
+        : null;
+
+    const data = await activityService.getActivityAllocationAvailability(
+      allocationId,
+      scope.schoolId,
+      excludeActivityId
+    );
+
+    return successResponse(res, {
+      message: "Activity allocation availability fetched successfully",
+      data,
+    });
+  } catch (err) {
+    return handleServiceError(res, err);
+  }
+};
+
 const submitActivity = async (req, res) => {
   try {
     const scope = getScopeContext(req, res);
@@ -336,6 +411,8 @@ module.exports = {
   getActivityById,
   getActivityTimeline,
   createActivity,
+  updateActivity,
+  getActivityAllocationAvailability,
   submitActivity,
   approveActivity,
   rejectActivity,

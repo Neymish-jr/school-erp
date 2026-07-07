@@ -1,6 +1,38 @@
 const pool = require("../db");
 const { successResponse, errorResponse } = require("../utils/response");
 
+const SUBJECT_IN_USE_MESSAGE =
+  "This subject is already in use and cannot be deleted. Deactivate it instead.";
+
+const SUBJECT_REFERENCE_TABLES = [
+  { key: "teacher_subject_assignments", sql: "teacher_subject_assignments" },
+  { key: "timetables", sql: "timetables" },
+  { key: "student_results", sql: "student_results" },
+  { key: "marks", sql: "marks" },
+  { key: "staff_service_history", sql: "staff_service_history" },
+];
+
+const findSubjectReferenceTables = async (subjectId) => {
+  const existsClauses = SUBJECT_REFERENCE_TABLES.map(
+    ({ key, sql }) =>
+      `EXISTS (SELECT 1 FROM ${sql} WHERE subject_id = $1) AS ${key}`
+  ).join(",\n      ");
+
+  const result = await pool.query(
+    `
+    SELECT
+      ${existsClauses}
+    `,
+    [subjectId]
+  );
+
+  const row = result.rows[0] || {};
+
+  return SUBJECT_REFERENCE_TABLES.filter(({ key }) => row[key] === true).map(
+    ({ key }) => key
+  );
+};
+
 const normalizeSubjectPayload = (payload = {}) => ({
   subject_name: String(payload.subject_name || "").trim(),
   applicable_classes: Array.isArray(payload.applicable_classes)
@@ -269,21 +301,12 @@ const deleteSubject = async (req, res) => {
   try {
     const { id } = req.params;
 
-    const linkedAssignments = await pool.query(
-      `
-      SELECT id
-      FROM teacher_subject_assignments
-      WHERE subject_id = $1
-        AND is_active = TRUE
-      LIMIT 1
-      `,
-      [id]
-    );
+    const referencedTables = await findSubjectReferenceTables(id);
 
-    if (linkedAssignments.rowCount > 0) {
+    if (referencedTables.length > 0) {
       return errorResponse(res, {
-        message: "This subject is assigned to teachers and cannot be deleted",
-        error: "Subject has linked assignments",
+        message: SUBJECT_IN_USE_MESSAGE,
+        error: "Subject in use",
         status: 409,
       });
     }
@@ -324,4 +347,7 @@ module.exports = {
   getSubjects,
   updateSubject,
   deleteSubject,
+  SUBJECT_IN_USE_MESSAGE,
+  SUBJECT_REFERENCE_TABLES,
+  findSubjectReferenceTables,
 };

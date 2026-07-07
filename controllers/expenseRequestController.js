@@ -127,9 +127,16 @@ const getAllocationBalance = async (req, res) => {
       return;
     }
 
+    const excludeRequestId =
+      req.query.exclude_request_id != null && req.query.exclude_request_id !== ""
+        ? Number(req.query.exclude_request_id)
+        : null;
+
     const data = await expenseRequestService.getAllocationBalance(
       Number(req.params.id),
-      schoolId
+      schoolId,
+      pool,
+      excludeRequestId
     );
 
     return successResponse(res, {

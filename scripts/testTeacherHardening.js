@@ -1,5 +1,5 @@
 /**
- * Verify Teacher Module Hardening Sprint changes.
+ * Verify Teacher Module Hardening Sprint changes (RC Sprint 2).
  * Usage: node backend/scripts/testTeacherHardening.js
  */
 
@@ -7,7 +7,6 @@ require("dotenv").config({ path: require("path").join(__dirname, "..", ".env") }
 
 const fs = require("fs");
 const path = require("path");
-const { isAdminLike } = require("../middleware/auth");
 
 const assert = (condition, message) => {
   if (!condition) throw new Error(message);
@@ -15,37 +14,6 @@ const assert = (condition, message) => {
 
 const read = (relativePath) =>
   fs.readFileSync(path.join(__dirname, "..", relativePath), "utf8");
-
-const runMiddleware = (middleware, role) =>
-  new Promise((resolve) => {
-    const req = { user: { role, school_id: 1 }, body: {} };
-    const res = {
-      statusCode: 200,
-      status(code) {
-        this.statusCode = code;
-        return this;
-      },
-      send(message) {
-        resolve({ statusCode: this.statusCode, message });
-      },
-      json(payload) {
-        resolve({ statusCode: this.statusCode, payload });
-      },
-    };
-
-    middleware(req, res, () => {
-      resolve({ statusCode: 200, message: "next" });
-    });
-  });
-
-const buildSchoolClause = (role, schoolId, params, tableAlias = "t") => {
-  if (role !== "super_admin" && schoolId != null) {
-    params.push(schoolId);
-    return `${tableAlias}.school_id = $${params.length}`;
-  }
-
-  return null;
-};
 
 const run = async () => {
   console.log("Teacher Module Hardening tests\n");
@@ -55,12 +23,11 @@ const run = async () => {
   const subjectController = read("controllers/teacherSubjectAssignmentController.js");
 
   assert(!teacherRoutes.includes("roleMiddleware"), "teacherRoutes must not use roleMiddleware");
-  assert(teacherRoutes.includes("isAdminLike"), "teacherRoutes must use isAdminLike");
-  assert(
-    (teacherRoutes.match(/isAdminLike/g) || []).length >= 3,
-    "teacherRoutes must apply isAdminLike to POST, PUT, and DELETE"
-  );
-  console.log("✓ teacherRoutes uses isAdminLike on mutating routes");
+  assert(!teacherRoutes.includes("isAdminLike"), "teacherRoutes must not use isAdminLike");
+  assert(teacherRoutes.includes('authorize("teacher.create")'), "teacherRoutes POST must use teacher.create");
+  assert(teacherRoutes.includes('authorize("teacher.update")'), "teacherRoutes PUT must use teacher.update");
+  assert(teacherRoutes.includes('authorize("teacher.delete")'), "teacherRoutes DELETE must use teacher.delete");
+  console.log("✓ teacherRoutes uses authorize() on mutating routes");
 
   require("../routes/teacherRoutes");
   require("../routes/teacherAdministrativeChargeAssignmentRoutes");
@@ -68,44 +35,29 @@ const run = async () => {
   console.log("✓ Modified modules load without import errors");
 
   assert(
-    adminChargeRoutes.includes("router.use(authenticate, isAdminLike)"),
-    "admin charge routes must use authenticate + isAdminLike"
+    adminChargeRoutes.includes('authorize("administration.charge_assignment.read")'),
+    "admin charge routes must use charge_assignment.read"
   );
-  assert(!adminChargeRoutes.includes("roleMiddleware"), "admin charge routes must not use roleMiddleware");
-  console.log("✓ teacherAdministrativeChargeAssignmentRoutes protected with isAdminLike");
+  assert(
+    adminChargeRoutes.includes('authorize("administration.charge_assignment.assign")'),
+    "admin charge routes must use charge_assignment.assign"
+  );
+  assert(!adminChargeRoutes.includes("isAdminLike"), "admin charge routes must not use isAdminLike");
+  console.log("✓ teacherAdministrativeChargeAssignmentRoutes use permission authorize()");
 
   assert(
-    subjectController.includes('role !== "super_admin"'),
-    "subject assignment controller must include super_admin bypass"
+    subjectController.includes("resolveSchoolScope"),
+    "subject assignment controller must use resolveSchoolScope"
   );
   assert(
     subjectController.includes("buildSchoolClause"),
     "subject assignment controller must define buildSchoolClause"
   );
   assert(
-    subjectController.includes("school_id: schoolId, role"),
-    "getAssignments must pass schoolId and role into buildAssignmentsQuery"
+    subjectController.includes("resolveSchoolIdForWrite"),
+    "subject assignment controller must use resolveSchoolIdForWrite for writes"
   );
-  console.log("✓ teacher subject assignment list scoped with super_admin bypass");
-
-  const adminParams = [];
-  const adminClause = buildSchoolClause("admin", 1, adminParams);
-  assert(adminClause === "t.school_id = $1", "admin must get school clause");
-  assert(adminParams.length === 1 && adminParams[0] === 1, "admin params must include school_id");
-
-  const superParams = [];
-  const superClause = buildSchoolClause("super_admin", 1, superParams);
-  assert(superClause === null, "super_admin must bypass school clause");
-  assert(superParams.length === 0, "super_admin params must not add school_id");
-  console.log("✓ buildSchoolClause matches promotion/student pattern");
-
-  for (const role of ["admin", "super_admin"]) {
-    const result = await runMiddleware(isAdminLike, role);
-    assert(result.statusCode === 200, `isAdminLike should allow ${role}`);
-  }
-  const teacherResult = await runMiddleware(isAdminLike, "teacher");
-  assert(teacherResult.statusCode === 403, "isAdminLike should deny teacher");
-  console.log("✓ isAdminLike allows admin/super_admin and denies teacher");
+  console.log("✓ teacher subject assignment list scoped via tenantScope");
 
   console.log("\nAll teacher hardening checks passed.");
 };

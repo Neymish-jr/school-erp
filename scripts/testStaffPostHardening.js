@@ -9,7 +9,6 @@ const fs = require("fs");
 const path = require("path");
 const { staffPostSchema } = require("../validators/staffPostValidator");
 const { validateRequest } = require("../middleware/validation");
-const { isAdminLike } = require("../middleware/auth");
 
 const assert = (condition, message) => {
   if (!condition) throw new Error(message);
@@ -86,17 +85,12 @@ const run = async () => {
     routesContent.includes("validateRequest(staffPostSchema)"),
     "Routes must use validateRequest(staffPostSchema)"
   );
-  assert(routesContent.includes("isAdminLike"), "RBAC must remain isAdminLike");
+  assert(routesContent.includes('authorize("staff_post.create")'), "POST must use staff_post.create");
+  assert(routesContent.includes('authorize("staff_post.update")'), "PUT must use staff_post.update");
+  assert(routesContent.includes('authorize("staff_post.delete")'), "DELETE must use staff_post.delete");
+  assert(!routesContent.includes("isAdminLike"), "staffPostRoutes must not use isAdminLike");
   assert(routesContent.includes("authenticate"), "Routes must remain authenticated");
-  console.log("✓ Route wiring and RBAC unchanged");
-
-  for (const role of ["admin", "super_admin"]) {
-    const result = await runMiddleware(isAdminLike, role);
-    assert(result.statusCode === 200, `isAdminLike should allow ${role}`);
-  }
-  const teacherResult = await runMiddleware(isAdminLike, "teacher");
-  assert(teacherResult.statusCode === 403, "isAdminLike should deny teacher");
-  console.log("✓ RBAC allows admin/super_admin and denies teacher");
+  console.log("✓ Route wiring uses permission-based authorize()");
 
   console.log("\nAll staff post hardening checks passed.");
 };

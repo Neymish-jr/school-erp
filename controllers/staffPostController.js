@@ -1,10 +1,14 @@
 const pool = require("../db");
 const asyncHandler = require("../middleware/asyncHandler");
 const AppError = require("../utils/AppError");
+const { resolveSchoolIdForWrite } = require("../utils/tenantScope");
 
 exports.getAllStaffPosts = asyncHandler(async (req, res, next) => {
   const { search, staff_category, page = 1, limit = 10 } = req.query;
-  const { school_id } = req.user;
+  const school_id = resolveSchoolIdForWrite(req, res);
+  if (school_id == null) {
+    return;
+  }
   const offset = (page - 1) * limit;
 
   let query = `SELECT id, post_name, post_code, staff_category, appointment_nature, sanctioned_count, created_at, updated_at FROM staff_posts WHERE school_id = $1`;
@@ -47,7 +51,10 @@ exports.getAllStaffPosts = asyncHandler(async (req, res, next) => {
 
 exports.getStaffPostById = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
-  const { school_id } = req.user;
+  const school_id = resolveSchoolIdForWrite(req, res);
+  if (school_id == null) {
+    return;
+  }
   const { rows: staffPost } = await pool.query("SELECT id, post_name, post_code, staff_category, appointment_nature, sanctioned_count, created_at, updated_at FROM staff_posts WHERE id = $1 AND school_id = $2", [id, school_id]);
 
   if (!staffPost.length) {
@@ -62,7 +69,10 @@ exports.getStaffPostById = asyncHandler(async (req, res, next) => {
 
 exports.createStaffPost = asyncHandler(async (req, res, next) => {
   const { post_name, post_code, staff_category, appointment_nature, sanctioned_count } = req.body;
-  const { school_id } = req.user; // Get school_id from authenticated user
+  const school_id = resolveSchoolIdForWrite(req, res);
+  if (school_id == null) {
+    return;
+  } // Get school_id from authenticated user
 
   const { rows: newStaffPost } = await pool.query(
     "INSERT INTO staff_posts (school_id, post_name, post_code, staff_category, appointment_nature, sanctioned_count) VALUES ($1, $2, $3, $4, $5, $6) RETURNING id, post_name, post_code, staff_category, appointment_nature, sanctioned_count, created_at, updated_at",
@@ -77,7 +87,10 @@ exports.createStaffPost = asyncHandler(async (req, res, next) => {
 
 exports.updateStaffPost = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
-  const { school_id } = req.user;
+  const school_id = resolveSchoolIdForWrite(req, res);
+  if (school_id == null) {
+    return;
+  }
   const { post_name, post_code, staff_category, appointment_nature, sanctioned_count } = req.body;
 
   const { rows: updatedStaffPost } = await pool.query(
@@ -97,7 +110,10 @@ exports.updateStaffPost = asyncHandler(async (req, res, next) => {
 
 exports.deleteStaffPost = asyncHandler(async (req, res, next) => {
   const { id } = req.params;
-  const { school_id } = req.user;
+  const school_id = resolveSchoolIdForWrite(req, res);
+  if (school_id == null) {
+    return;
+  }
 
   const { rowCount } = await pool.query("DELETE FROM staff_posts WHERE id = $1 AND school_id = $2", [id, school_id]);
 
@@ -113,7 +129,10 @@ exports.deleteStaffPost = asyncHandler(async (req, res, next) => {
 
 // Dashboard Widgets
 exports.getTotalStaffPosts = asyncHandler(async (req, res) => {
-  const { school_id } = req.user;
+  const school_id = resolveSchoolIdForWrite(req, res);
+  if (school_id == null) {
+    return;
+  }
   const { rows } = await pool.query("SELECT COUNT(*) FROM staff_posts WHERE school_id = $1", [school_id]);
   res.status(200).json({
     status: "success",
@@ -122,7 +141,10 @@ exports.getTotalStaffPosts = asyncHandler(async (req, res) => {
 });
 
 exports.getTotalSanctionedStrength = asyncHandler(async (req, res) => {
-  const { school_id } = req.user;
+  const school_id = resolveSchoolIdForWrite(req, res);
+  if (school_id == null) {
+    return;
+  }
   const { rows } = await pool.query("SELECT SUM(sanctioned_count) FROM staff_posts WHERE school_id = $1", [school_id]);
   res.status(200).json({
     status: "success",
@@ -131,10 +153,17 @@ exports.getTotalSanctionedStrength = asyncHandler(async (req, res) => {
 });
 
 exports.getFilledPositions = asyncHandler(async (req, res) => {
-  const { school_id } = req.user;
-  // TODO(staffing): Exclude assignments held by non-active teachers (deputation, transferred, retired, resigned)
-  // when calculating filled positions. Join teachers.status = 'active'.
-  const { rows } = await pool.query("SELECT COUNT(*) FROM teacher_staff_post_assignments WHERE is_active = TRUE AND school_id = $1", [school_id]);
+  const school_id = resolveSchoolIdForWrite(req, res);
+  if (school_id == null) {
+    return;
+  }
+  const { rows } = await pool.query(
+    `SELECT COUNT(*)
+     FROM teacher_staff_post_assignments tspa
+     INNER JOIN teachers t ON t.id = tspa.teacher_id AND t.status = 'active'
+     WHERE tspa.is_active = TRUE AND tspa.school_id = $1`,
+    [school_id]
+  );
   res.status(200).json({
     status: "success",
     data: parseInt(rows[0].count),
@@ -142,10 +171,18 @@ exports.getFilledPositions = asyncHandler(async (req, res) => {
 });
 
 exports.getVacantPositions = asyncHandler(async (req, res) => {
-  const { school_id } = req.user;
+  const school_id = resolveSchoolIdForWrite(req, res);
+  if (school_id == null) {
+    return;
+  }
   const { rows: totalSanctioned } = await pool.query("SELECT SUM(sanctioned_count) FROM staff_posts WHERE school_id = $1", [school_id]);
-  // TODO(staffing): Align filled count with active teachers only before computing vacancy.
-  const { rows: filledPositions } = await pool.query("SELECT COUNT(*) FROM teacher_staff_post_assignments WHERE is_active = TRUE AND school_id = $1", [school_id]);
+  const { rows: filledPositions } = await pool.query(
+    `SELECT COUNT(*)
+     FROM teacher_staff_post_assignments tspa
+     INNER JOIN teachers t ON t.id = tspa.teacher_id AND t.status = 'active'
+     WHERE tspa.is_active = TRUE AND tspa.school_id = $1`,
+    [school_id]
+  );
 
   const total = parseInt(totalSanctioned[0].sum || 0);
   const filled = parseInt(filledPositions[0].count);

@@ -1,11 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../middleware/asyncHandler");
-const {
-  authenticate,
-  isAdminLike,
-  isSuperAdmin,
-} = require("../middleware/auth");
+const { authenticate } = require("../middleware/auth");
+const authorize = require("../middleware/authorize");
 const { validateRequest } = require("../middleware/validation");
 const {
   financialYearCreateSchema,
@@ -22,39 +19,44 @@ const {
   deleteFinancialYear,
 } = require("../controllers/financialYearController");
 
-router.get("/", authenticate, asyncHandler(getFinancialYears));
-router.get("/active", authenticate, asyncHandler(getActiveFinancialYear));
-router.get("/:id", authenticate, asyncHandler(getFinancialYearById));
+router.get("/", authenticate, authorize("finance.financial_year.read"), asyncHandler(getFinancialYears));
+router.get(
+  "/active",
+  authenticate,
+  authorize("finance.financial_year.read"),
+  asyncHandler(getActiveFinancialYear)
+);
+router.get("/:id", authenticate, authorize("finance.financial_year.read"), asyncHandler(getFinancialYearById));
 router.post(
   "/",
   authenticate,
-  isAdminLike,
+  authorize("finance.financial_year.create"),
   validateRequest(financialYearCreateSchema),
   asyncHandler(createFinancialYear)
 );
 router.put(
   "/:id",
   authenticate,
-  isAdminLike,
+  authorize("finance.financial_year.update"),
   validateRequest(financialYearUpdateSchema),
   asyncHandler(updateFinancialYear)
 );
 router.put(
   "/:id/activate",
   authenticate,
-  isAdminLike,
+  authorize("finance.financial_year.activate"),
   asyncHandler(activateFinancialYear)
 );
 router.put(
   "/:id/close",
   authenticate,
-  isAdminLike,
+  authorize("finance.financial_year.close"),
   asyncHandler(closeFinancialYear)
 );
 router.delete(
   "/:id",
   authenticate,
-  isSuperAdmin,
+  authorize("finance.financial_year.delete"),
   asyncHandler(deleteFinancialYear)
 );
 

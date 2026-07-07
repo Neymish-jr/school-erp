@@ -1,7 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../middleware/asyncHandler");
-const { authenticate, isAdminLike } = require("../middleware/auth");
+const { authenticate } = require("../middleware/auth");
+const authorize = require("../middleware/authorize");
 const { validateRequest } = require("../middleware/validation");
 const { linkUserTeacherSchema } = require("../validators/userTeacherLinkValidator");
 const {
@@ -13,14 +14,14 @@ const {
 router.get(
   "/:userId/teacher-link",
   authenticate,
-  isAdminLike,
+  authorize("user.teacher_link.read"),
   asyncHandler(getUserTeacherLink)
 );
 
 router.put(
   "/:userId/teacher-link",
   authenticate,
-  isAdminLike,
+  authorize("user.teacher_link.update"),
   validateRequest(linkUserTeacherSchema),
   asyncHandler(putUserTeacherLink)
 );
@@ -28,7 +29,7 @@ router.put(
 router.delete(
   "/:userId/teacher-link",
   authenticate,
-  isAdminLike,
+  authorize("user.teacher_link.delete"),
   asyncHandler(deleteUserTeacherLink)
 );
 

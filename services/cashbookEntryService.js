@@ -4,6 +4,7 @@ const AppError = require("../utils/AppError");
 const {
   CASHBOOK_ENTRY_TYPE,
   CASHBOOK_DIRECTION,
+  CASHBOOK_EXPORT_MAX_ROWS,
 } = require("../constants/cashbookEntry");
 
 const ENTRY_SELECT = `
@@ -280,12 +281,7 @@ const getCashbookEntryById = async (id, schoolId, role) => {
 };
 
 const getCashbookSummary = async (filters) => {
-  const { params, whereClause } = buildListFilters({
-    ...filters,
-    search: undefined,
-    voucherNo: undefined,
-    vendorName: undefined,
-  });
+  const { params, whereClause } = buildListFilters(filters);
 
   const paymentFilter = `${whereClause} AND ce.entry_type = '${CASHBOOK_ENTRY_TYPE.PAYMENT}' AND ce.direction = '${CASHBOOK_DIRECTION.OUTFLOW}'`;
 
@@ -357,6 +353,23 @@ const getCashbookSummary = async (filters) => {
 const exportCashbookEntriesXlsx = async (filters) => {
   const { params, whereClause } = buildListFilters(filters);
 
+  const countResult = await pool.query(
+    `
+    SELECT COUNT(*)::int AS total
+    ${ENTRY_FROM}
+    WHERE ${whereClause}
+    `,
+    params
+  );
+
+  const total = countResult.rows[0].total;
+  if (total > CASHBOOK_EXPORT_MAX_ROWS) {
+    throw new AppError(
+      413,
+      `Export exceeds maximum of ${CASHBOOK_EXPORT_MAX_ROWS} rows (${total} match). Narrow your filters.`
+    );
+  }
+
   const result = await pool.query(
     `
     SELECT
@@ -372,8 +385,9 @@ const exportCashbookEntriesXlsx = async (filters) => {
     ${ENTRY_FROM}
     WHERE ${whereClause}
     ORDER BY ce.entry_date DESC, ce.id DESC
+    LIMIT $${params.length + 1}
     `,
-    params
+    [...params, CASHBOOK_EXPORT_MAX_ROWS]
   );
 
   const rows = result.rows.map((row) => ({

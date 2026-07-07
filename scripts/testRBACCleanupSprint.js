@@ -1,5 +1,5 @@
 /**
- * Verify RBAC Cleanup Sprint changes.
+ * Verify RBAC Cleanup Sprint changes (RC Sprint 2 permission migration).
  * Usage: node backend/scripts/testRBACCleanupSprint.js
  */
 
@@ -7,7 +7,6 @@ require("dotenv").config({ path: require("path").join(__dirname, "..", ".env") }
 
 const fs = require("fs");
 const path = require("path");
-const { isAdminLike } = require("../middleware/auth");
 
 const assert = (condition, message) => {
   if (!condition) throw new Error(message);
@@ -16,26 +15,7 @@ const assert = (condition, message) => {
 const read = (relativePath) =>
   fs.readFileSync(path.join(__dirname, "..", relativePath), "utf8");
 
-const runMiddleware = (middleware, role) =>
-  new Promise((resolve) => {
-    const req = { user: { role, school_id: 1 } };
-    const res = {
-      statusCode: 200,
-      status(code) {
-        this.statusCode = code;
-        return this;
-      },
-      send(message) {
-        resolve({ statusCode: this.statusCode, message });
-      },
-    };
-
-    middleware(req, res, () => {
-      resolve({ statusCode: 200, message: "next" });
-    });
-  });
-
-const assertWriteRouteUsesAdminLike = (content, method, routePattern, label) => {
+const assertWriteRouteUsesAuthorize = (content, method, routePattern, permission, label) => {
   const routeRegex = new RegExp(
     `router\\.${method}\\(\\s*["']${routePattern}["'][\\s\\S]*?asyncHandler\\(`,
     "i"
@@ -44,8 +24,8 @@ const assertWriteRouteUsesAdminLike = (content, method, routePattern, label) => 
 
   assert(match, `${label} ${method.toUpperCase()} route must exist`);
   assert(
-    match[0].includes("isAdminLike"),
-    `${label} ${method.toUpperCase()} must use isAdminLike`
+    match[0].includes(`authorize("${permission}")`),
+    `${label} ${method.toUpperCase()} must use authorize("${permission}")`
   );
 };
 
@@ -53,41 +33,42 @@ const run = async () => {
   console.log("RBAC Cleanup Sprint tests\n");
 
   const routeFiles = [
-    ["routes/classRoutes.js", "classRoutes"],
-    ["routes/sectionRoutes.js", "sectionRoutes"],
-    ["routes/classSectionRoutes.js", "classSectionRoutes"],
-    ["routes/examRoutes.js", "examRoutes"],
-    ["routes/subjectRoutes.js", "subjectRoutes"],
+    ["routes/classRoutes.js", "classRoutes", "class.create"],
+    ["routes/sectionRoutes.js", "sectionRoutes", "section.create"],
+    ["routes/classSectionRoutes.js", "classSectionRoutes", "class_section.create"],
+    ["routes/examRoutes.js", "examRoutes", "exam.create"],
+    ["routes/subjectRoutes.js", "subjectRoutes", "subject.create"],
   ];
 
   for (const [filePath, label] of routeFiles) {
     const content = read(filePath);
 
     assert(!content.includes("roleMiddleware"), `${label} must not use roleMiddleware`);
-    assert(content.includes("isAdminLike"), `${label} must import/use isAdminLike`);
+    assert(!content.includes("isAdminLike"), `${label} must not use isAdminLike`);
+    assert(content.includes("authorize("), `${label} must use authorize()`);
     assert(content.includes("authenticate"), `${label} must keep authenticate`);
-    console.log(`✓ ${label} uses isAdminLike instead of legacy roleMiddleware`);
+    console.log(`✓ ${label} uses authorize() instead of legacy role checks`);
   }
 
-  assertWriteRouteUsesAdminLike(read("routes/classRoutes.js"), "post", "\\/", "classRoutes");
-  assertWriteRouteUsesAdminLike(read("routes/sectionRoutes.js"), "post", "\\/", "sectionRoutes");
-  assertWriteRouteUsesAdminLike(read("routes/classSectionRoutes.js"), "post", "\\/", "classSectionRoutes");
-  assertWriteRouteUsesAdminLike(read("routes/classSectionRoutes.js"), "put", "\\/:id", "classSectionRoutes");
-  assertWriteRouteUsesAdminLike(read("routes/classSectionRoutes.js"), "delete", "\\/:id", "classSectionRoutes");
-  assertWriteRouteUsesAdminLike(read("routes/examRoutes.js"), "post", "\\/", "examRoutes");
-  assertWriteRouteUsesAdminLike(read("routes/subjectRoutes.js"), "post", "\\/", "subjectRoutes");
-  assertWriteRouteUsesAdminLike(read("routes/subjectRoutes.js"), "put", "\\/:id", "subjectRoutes");
-  assertWriteRouteUsesAdminLike(read("routes/subjectRoutes.js"), "delete", "\\/:id", "subjectRoutes");
-  console.log("✓ POST/PUT/DELETE write routes require isAdminLike");
+  assertWriteRouteUsesAuthorize(read("routes/classRoutes.js"), "post", "\\/", "class.create", "classRoutes");
+  assertWriteRouteUsesAuthorize(read("routes/sectionRoutes.js"), "post", "\\/", "section.create", "sectionRoutes");
+  assertWriteRouteUsesAuthorize(read("routes/classSectionRoutes.js"), "post", "\\/", "class_section.create", "classSectionRoutes");
+  assertWriteRouteUsesAuthorize(read("routes/classSectionRoutes.js"), "put", "\\/:id", "class_section.update", "classSectionRoutes");
+  assertWriteRouteUsesAuthorize(read("routes/classSectionRoutes.js"), "delete", "\\/:id", "class_section.delete", "classSectionRoutes");
+  assertWriteRouteUsesAuthorize(read("routes/examRoutes.js"), "post", "\\/", "exam.create", "examRoutes");
+  assertWriteRouteUsesAuthorize(read("routes/subjectRoutes.js"), "post", "\\/", "subject.create", "subjectRoutes");
+  assertWriteRouteUsesAuthorize(read("routes/subjectRoutes.js"), "put", "\\/:id", "subject.update", "subjectRoutes");
+  assertWriteRouteUsesAuthorize(read("routes/subjectRoutes.js"), "delete", "\\/:id", "subject.delete", "subjectRoutes");
+  console.log("✓ POST/PUT/DELETE write routes require permission authorize()");
 
   for (const [filePath] of routeFiles) {
     const content = read(filePath);
     assert(
-      /router\.get\([\s\S]*authenticate/.test(content),
-      `${filePath} GET routes must remain authenticate-protected`
+      /router\.get\([\s\S]*authorize\(/.test(content),
+      `${filePath} GET routes must use authorize()`
     );
   }
-  console.log("✓ GET routes remain authenticate-only");
+  console.log("✓ GET routes use authorize()");
 
   const assignmentController = read("controllers/teacherSubjectAssignmentController.js");
   assert(
@@ -99,8 +80,8 @@ const run = async () => {
     "relieveAssignment must join teachers for school scope"
   );
   assert(
-    assignmentController.includes('role !== "super_admin"'),
-    "teacherSubjectAssignmentController must include super_admin bypass"
+    assignmentController.includes("resolveSchoolScope"),
+    "teacherSubjectAssignmentController must use resolveSchoolScope"
   );
   console.log("✓ relieveAssignment is school scoped via teachers join");
 
@@ -127,15 +108,6 @@ const run = async () => {
   require("../controllers/teacherSubjectAssignmentController");
   require("../controllers/authController");
   console.log("✓ Modified modules load without import errors");
-
-  for (const role of ["admin", "super_admin"]) {
-    const result = await runMiddleware(isAdminLike, role);
-    assert(result.statusCode === 200, `isAdminLike should allow ${role}`);
-  }
-
-  const teacherResult = await runMiddleware(isAdminLike, "teacher");
-  assert(teacherResult.statusCode === 403, "isAdminLike should deny teacher");
-  console.log("✓ isAdminLike allows admin/super_admin and denies teacher");
 
   console.log("\nAll RBAC Cleanup Sprint checks passed.");
 };

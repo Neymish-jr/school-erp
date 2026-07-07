@@ -1,7 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../middleware/asyncHandler");
-const { authenticate, isAdminOrSuperAdmin } = require("../middleware/auth");
+const { authenticate } = require("../middleware/auth");
+const authorize = require("../middleware/authorize");
 const {
   getCashbookEntries,
   getCashbookEntry,
@@ -9,11 +10,29 @@ const {
   exportCashbook,
 } = require("../controllers/cashbookEntryController");
 
-router.use(authenticate, isAdminOrSuperAdmin);
-
-router.get("/", asyncHandler(getCashbookEntries));
-router.get("/summary", asyncHandler(getCashbookSummary));
-router.get("/export", asyncHandler(exportCashbook));
-router.get("/:id", asyncHandler(getCashbookEntry));
+router.get(
+  "/",
+  authenticate,
+  authorize("finance.cashbook.read"),
+  asyncHandler(getCashbookEntries)
+);
+router.get(
+  "/summary",
+  authenticate,
+  authorize("finance.cashbook.read_summary"),
+  asyncHandler(getCashbookSummary)
+);
+router.get(
+  "/export",
+  authenticate,
+  authorize("finance.cashbook.export"),
+  asyncHandler(exportCashbook)
+);
+router.get(
+  "/:id",
+  authenticate,
+  authorize("finance.cashbook.read"),
+  asyncHandler(getCashbookEntry)
+);
 
 module.exports = router;

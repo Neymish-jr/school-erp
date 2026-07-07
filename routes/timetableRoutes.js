@@ -1,7 +1,8 @@
 const express = require("express");
 const router = express.Router();
 const asyncHandler = require("../middleware/asyncHandler");
-const { authenticate, isAdminLike, isTeacherOrAdminLike } = require("../middleware/auth");
+const { authenticate } = require("../middleware/auth");
+const authorize = require("../middleware/authorize");
 const { validateRequest } = require("../middleware/validation");
 const timetableSchema = require("../validators/timetableValidator");
 
@@ -15,18 +16,18 @@ const {
 router.post(
   "/",
   authenticate,
-  isAdminLike,
+  authorize("timetable.create"),
   validateRequest(timetableSchema),
   asyncHandler(createTimetable)
 );
 
-router.get("/", authenticate, isTeacherOrAdminLike, asyncHandler(getAllTimetables));
+router.get("/", authenticate, authorize("timetable.read"), asyncHandler(getAllTimetables));
 router.get(
   "/class/:classSectionId",
   authenticate,
-  isTeacherOrAdminLike,
+  authorize("timetable.read_by_class"),
   asyncHandler(getTimetableByClass)
 );
-router.delete("/:id", authenticate, isAdminLike, asyncHandler(deleteTimetable));
+router.delete("/:id", authenticate, authorize("timetable.delete"), asyncHandler(deleteTimetable));
 
 module.exports = router;
