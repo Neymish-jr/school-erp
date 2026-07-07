@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { toast } from "react-toastify";
 import DashboardLayout from "../../layouts/DashboardLayout";
 import {
@@ -7,9 +7,11 @@ import {
   completeActivity,
   createActivity,
   fetchActivities,
+  fetchActivityAllocationAvailability,
   fetchActivityDashboard,
   rejectActivity,
   submitActivity,
+  updateActivity,
 } from "../../api/activities";
 import { fetchBudgetAllocations, fetchFinancialYears } from "../../api/finance";
 import API from "../../api/axios";
@@ -61,6 +63,24 @@ const emptyForm = {
 
 const emptyRejectForm = { rejection_remarks: "" };
 
+const ACTIVITY_STATUS_VALUES = STATUS_OPTIONS.map((option) => option.value).filter(Boolean);
+
+const isEditableActivityStatus = (status) => status === "draft" || status === "rejected";
+
+const isSubmittableActivityStatus = (status) => status === "draft" || status === "rejected";
+
+const resolveInitialActivityStatusFilter = (role, statusParam) => {
+  if (statusParam && ACTIVITY_STATUS_VALUES.includes(statusParam)) {
+    return statusParam;
+  }
+
+  if (role === "principal") {
+    return "submitted";
+  }
+
+  return "";
+};
+
 const formatCurrency = (value) => {
   const amount = Number(value);
   if (Number.isNaN(amount)) return "—";
@@ -97,8 +117,12 @@ const StatusBadge = ({ status }) => {
 
 function Activities() {
   const { can, role } = usePermissions();
+  const [searchParams] = useSearchParams();
   const canCreateActivity = can("finance.activity.create");
+  const canUpdateActivity = can("finance.activity.update");
+  const canSubmitActivity = can("finance.activity.submit");
   const canApproveActivity = can("finance.activity.approve");
+  const canCompleteActivity = can("finance.activity.complete");
   const isTeacherUser = role === "teacher";
 
   const [financialYears, setFinancialYears] = useState([]);
@@ -109,12 +133,16 @@ function Activities() {
   const [teachers, setTeachers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState(() =>
+    resolveInitialActivityStatusFilter(role, searchParams.get("status"))
+  );
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingActivityId, setEditingActivityId] = useState(null);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [rejectTarget, setRejectTarget] = useState(null);
   const [formData, setFormData] = useState(emptyForm);
   const [rejectForm, setRejectForm] = useState(emptyRejectForm);
+  const [budgetAvailability, setBudgetAvailability] = useState(null);
   const [isSaving, setIsSaving] = useState(false);
 
   const financialYearOptions = useMemo(() => {
@@ -213,44 +241,145 @@ function Activities() {
   }, [loadActivities]);
 
   const openCreateModal = () => {
+    setEditingActivityId(null);
     setFormData(emptyForm);
+    setBudgetAvailability(null);
     setIsModalOpen(true);
   };
+
+  const openEditModal = (activity) => {
+    setEditingActivityId(activity.id);
+    setFormData({
+      activity_name: activity.activity_name || "",
+      description: activity.description || "",
+      allocated_budget: String(activity.allocated_budget ?? ""),
+      assigned_teacher_id: activity.assigned_teacher_id
+        ? String(activity.assigned_teacher_id)
+        : "",
+      budget_allocation_id: activity.budget_allocation_id
+        ? String(activity.budget_allocation_id)
+        : "",
+    });
+    setBudgetAvailability(null);
+    setIsModalOpen(true);
+  };
+
+  const refreshBudgetAvailability = useCallback(
+    async (allocationId, excludeActivityId = null) => {
+      if (!allocationId) {
+        setBudgetAvailability(null);
+        return null;
+      }
+
+      try {
+        const response = await fetchActivityAllocationAvailability(allocationId, {
+          ...(excludeActivityId ? { exclude_activity_id: excludeActivityId } : {}),
+        });
+        const availability = response?.data?.data || null;
+        setBudgetAvailability(availability);
+        return availability;
+      } catch {
+        setBudgetAvailability(null);
+        return null;
+      }
+    },
+    []
+  );
+
+  useEffect(() => {
+    if (!isModalOpen || !formData.budget_allocation_id) {
+      return;
+    }
+
+    refreshBudgetAvailability(
+      Number(formData.budget_allocation_id),
+      editingActivityId
+    );
+  }, [
+    editingActivityId,
+    formData.budget_allocation_id,
+    isModalOpen,
+    refreshBudgetAvailability,
+  ]);
 
   const handleFormChange = (event) => {
     const { name, value } = event.target;
     setFormData((current) => ({ ...current, [name]: value }));
   };
 
-  const handleCreate = async (event) => {
+  const validateBudgetBeforeSave = async () => {
+    if (!formData.budget_allocation_id) {
+      return null;
+    }
+
+    const budget = Number(formData.allocated_budget);
+    if (!Number.isFinite(budget) || budget <= 0) {
+      return "Enter a valid allocated budget.";
+    }
+
+    const availability = await refreshBudgetAvailability(
+      Number(formData.budget_allocation_id),
+      editingActivityId
+    );
+
+    if (
+      availability &&
+      budget > Number(availability.available_balance)
+    ) {
+      return `Allocated budget exceeds available balance (${formatCurrency(
+        availability.available_balance
+      )}).`;
+    }
+
+    return null;
+  };
+
+  const buildActivityPayload = () => ({
+    activity_name: formData.activity_name.trim(),
+    description: formData.description.trim(),
+    allocated_budget: Number(formData.allocated_budget),
+    ...(formData.budget_allocation_id
+      ? { budget_allocation_id: Number(formData.budget_allocation_id) }
+      : { budget_allocation_id: null }),
+    ...(!isTeacherUser && formData.assigned_teacher_id
+      ? { assigned_teacher_id: Number(formData.assigned_teacher_id) }
+      : {}),
+  });
+
+  const handleSaveActivity = async (event) => {
     event.preventDefault();
     setIsSaving(true);
 
     try {
-      const payload = {
-        activity_name: formData.activity_name.trim(),
-        description: formData.description.trim(),
-        allocated_budget: Number(formData.allocated_budget),
-        ...(formData.budget_allocation_id
-          ? { budget_allocation_id: Number(formData.budget_allocation_id) }
-          : {}),
-        ...(!isTeacherUser && formData.assigned_teacher_id
-          ? { assigned_teacher_id: Number(formData.assigned_teacher_id) }
-          : {}),
-      };
+      const budgetError = await validateBudgetBeforeSave();
+      if (budgetError) {
+        toast.error(budgetError);
+        return;
+      }
 
-      const response = await createActivity(payload);
-      const requiresQuotation = response?.data?.data?.requires_quotation;
+      const payload = buildActivityPayload();
 
-      toast.success(
-        requiresQuotation
-          ? "Activity created. Quotations will be required for amounts above ₹50,000."
-          : "Activity created as draft"
-      );
+      if (editingActivityId) {
+        await updateActivity(editingActivityId, payload);
+        toast.success("Activity updated");
+      } else {
+        const response = await createActivity(payload);
+        const requiresQuotation = response?.data?.data?.requires_quotation;
+
+        toast.success(
+          requiresQuotation
+            ? "Activity created. Quotations will be required for amounts above ₹50,000."
+            : "Activity created as draft"
+        );
+      }
+
       setIsModalOpen(false);
+      setEditingActivityId(null);
+      setFormData(emptyForm);
+      setBudgetAvailability(null);
       await loadActivities();
     } catch (err) {
-      toast.error(err?.response?.data?.message || "Failed to create activity");
+      toast.error(err?.response?.data?.message || "Failed to save activity");
     } finally {
       setIsSaving(false);
     }
@@ -404,15 +533,34 @@ function Activities() {
                   </DataTableCell>
                   <DataTableCell>
                     <div className="flex flex-wrap gap-2">
-                      {activity.status === "draft" ? (
+                      {canUpdateActivity && isEditableActivityStatus(activity.status) ? (
                         <Button
                           type="button"
                           size="sm"
                           variant="secondary"
                           disabled={isSaving}
-                          onClick={() => runAction(activity, submitActivity, "Activity submitted")}
+                          onClick={() => openEditModal(activity)}
                         >
-                          Submit
+                          Edit
+                        </Button>
+                      ) : null}
+                      {canSubmitActivity && isSubmittableActivityStatus(activity.status) ? (
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="secondary"
+                          disabled={isSaving}
+                          onClick={() =>
+                            runAction(
+                              activity,
+                              submitActivity,
+                              activity.status === "rejected"
+                                ? "Activity resubmitted"
+                                : "Activity submitted"
+                            )
+                          }
+                        >
+                          {activity.status === "rejected" ? "Resubmit" : "Submit"}
                         </Button>
                       ) : null}
                       {canApproveActivity && activity.status === "submitted" ? (
@@ -439,7 +587,7 @@ function Activities() {
                           </Button>
                         </>
                       ) : null}
-                      {activity.status === "approved" ? (
+                      {canCompleteActivity && activity.status === "approved" ? (
                         <Button
                           type="button"
                           size="sm"
@@ -461,10 +609,14 @@ function Activities() {
 
       <ErpModal
         isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="New Activity"
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingActivityId(null);
+          setBudgetAvailability(null);
+        }}
+        title={editingActivityId ? "Edit Activity" : "New Activity"}
       >
-        <form onSubmit={handleCreate}>
+        <form onSubmit={handleSaveActivity}>
           <FormField label="Activity name" required>
             <Input
               name="activity_name"
@@ -491,6 +643,12 @@ function Activities() {
               onChange={handleFormChange}
               required
             />
+            {budgetAvailability ? (
+              <p className="mt-1 text-xs text-slate-500">
+                Available for this allocation:{" "}
+                {formatCurrency(budgetAvailability.available_balance)}
+              </p>
+            ) : null}
           </FormField>
           <FormField label="Budget allocation">
             <Select
@@ -528,7 +686,11 @@ function Activities() {
               Cancel
             </Button>
             <Button type="submit" disabled={isSaving}>
-              {isSaving ? "Saving..." : "Create draft"}
+              {isSaving
+                ? "Saving..."
+                : editingActivityId
+                  ? "Save changes"
+                  : "Create draft"}
             </Button>
           </FormActions>
         </form>

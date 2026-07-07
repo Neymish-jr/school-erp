@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
 import DashboardLayout from "../../../layouts/DashboardLayout";
@@ -10,6 +11,7 @@ import {
   fetchCashbookSummary,
   fetchFinancialYears,
 } from "../../../api/finance";
+import { DataToolbar } from "../../../components/dataToolbar";
 import {
   PageHeader,
   MetricGrid,
@@ -149,32 +151,34 @@ function Cashbook() {
     }
   }, []);
 
+  const buildFilterParams = useCallback(() => {
+    const params = {};
+
+    if (selectedFyId) params.financial_year_id = selectedFyId;
+    if (selectedHeadId) params.budget_head_id = selectedHeadId;
+    if (selectedSubHeadId) params.budget_sub_head_id = selectedSubHeadId;
+    if (dateFrom) params.date_from = dateFrom;
+    if (dateTo) params.date_to = dateTo;
+    if (search.trim()) params.search = search.trim();
+
+    return params;
+  }, [dateFrom, dateTo, search, selectedFyId, selectedHeadId, selectedSubHeadId]);
+
   const loadCashbook = useCallback(async () => {
     setIsLoading(true);
     setError("");
 
     try {
+      const filterParams = buildFilterParams();
       const params = {
+        ...filterParams,
         page: pagination.page,
         limit: pagination.limit,
       };
 
-      if (selectedFyId) params.financial_year_id = selectedFyId;
-      if (selectedHeadId) params.budget_head_id = selectedHeadId;
-      if (selectedSubHeadId) params.budget_sub_head_id = selectedSubHeadId;
-      if (dateFrom) params.date_from = dateFrom;
-      if (dateTo) params.date_to = dateTo;
-      if (search.trim()) params.search = search.trim();
-
       const [listRes, summaryRes] = await Promise.all([
         fetchCashbookEntries(params),
-        fetchCashbookSummary({
-          financial_year_id: selectedFyId || undefined,
-          budget_head_id: selectedHeadId || undefined,
-          budget_sub_head_id: selectedSubHeadId || undefined,
-          date_from: dateFrom || undefined,
-          date_to: dateTo || undefined,
-        }),
+        fetchCashbookSummary(filterParams),
       ]);
 
       setEntries(listRes?.data?.data || []);
@@ -191,14 +195,9 @@ function Cashbook() {
       setIsLoading(false);
     }
   }, [
-    dateFrom,
-    dateTo,
+    buildFilterParams,
     pagination.limit,
     pagination.page,
-    search,
-    selectedFyId,
-    selectedHeadId,
-    selectedSubHeadId,
   ]);
 
   useEffect(() => {
@@ -217,13 +216,7 @@ function Cashbook() {
     setIsExporting(true);
 
     try {
-      const params = {};
-      if (selectedFyId) params.financial_year_id = selectedFyId;
-      if (selectedHeadId) params.budget_head_id = selectedHeadId;
-      if (selectedSubHeadId) params.budget_sub_head_id = selectedSubHeadId;
-      if (dateFrom) params.date_from = dateFrom;
-      if (dateTo) params.date_to = dateTo;
-      if (search.trim()) params.search = search.trim();
+      const params = buildFilterParams();
 
       const response = await exportCashbookXlsx(params);
       const blob = new Blob([response.data], {
@@ -241,7 +234,9 @@ function Cashbook() {
       toast.success("Cashbook exported successfully.");
     } catch (exportError) {
       console.error(exportError);
-      toast.error("Failed to export cashbook.");
+      toast.error(
+        exportError?.response?.data?.message || "Failed to export cashbook."
+      );
     } finally {
       setIsExporting(false);
     }
@@ -272,9 +267,16 @@ function Cashbook() {
           title="Cashbook"
           description="Read-only expenditure register sourced from paid expense requests. Ledger entries are immutable once posted."
           actions={
-            <Button variant="secondary" onClick={handleExport} disabled={isExporting || isLoading}>
-              {isExporting ? "Exporting…" : "Export XLSX"}
-            </Button>
+            <DataToolbar
+              export={{
+                label: "Export XLSX",
+                onClick: handleExport,
+                loading: isExporting,
+                loadingLabel: "Exporting…",
+                disabled: isLoading,
+                permission: "finance.cashbook.export",
+              }}
+            />
           }
         />
 
@@ -473,7 +475,19 @@ function Cashbook() {
             </div>
             <div className="md:col-span-2">
               <p className="text-xs uppercase tracking-wide text-slate-500">Expense Request</p>
-              <p className="mt-1 text-white">#{detailEntry.expense_request_id || "—"}</p>
+              <p className="mt-1 text-white">
+                {detailEntry.expense_request_id ? (
+                  <Link
+                    to={`/finance/expense-requests/${detailEntry.expense_request_id}`}
+                    className="text-primary-400 hover:text-primary-300 hover:underline"
+                    onClick={() => setIsDetailOpen(false)}
+                  >
+                    #{detailEntry.expense_request_id}
+                  </Link>
+                ) : (
+                  "—"
+                )}
+              </p>
             </div>
           </div>
         ) : null}

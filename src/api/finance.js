@@ -159,9 +159,10 @@ export const fetchExpenseRequestSummary = (params = {}) =>
     params,
   });
 
-export const fetchAllocationBalance = (allocationId) =>
+export const fetchAllocationBalance = (allocationId, params = {}) =>
   API.get(`/api/expense-requests/allocation/${allocationId}/balance`, {
     headers: getAuthHeaders(),
+    params,
   });
 
 export const fetchExpenseRequestById = (id) =>

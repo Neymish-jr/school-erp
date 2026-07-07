@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "react-toastify";
 import DashboardLayout from "../../../layouts/DashboardLayout";
@@ -75,6 +75,28 @@ const emptyPaidForm = {
   purchase_rate: "",
 };
 
+const isEditableExpenseStatus = (status) => status === "draft" || status === "rejected";
+
+const isSubmittableExpenseStatus = (status) => status === "draft" || status === "rejected";
+
+const EXPENSE_STATUS_VALUES = STATUS_OPTIONS.map((option) => option.value).filter(Boolean);
+
+const resolveInitialExpenseStatusFilter = (role, statusParam) => {
+  if (statusParam && EXPENSE_STATUS_VALUES.includes(statusParam)) {
+    return statusParam;
+  }
+
+  if (role === "principal") {
+    return "pending";
+  }
+
+  if (role === "office_staff") {
+    return "approved";
+  }
+
+  return "";
+};
+
 const formatCurrency = (value) => {
   const amount = Number(value);
   if (Number.isNaN(amount)) return "—";
@@ -119,7 +141,8 @@ const StatusBadge = ({ status }) => {
 };
 
 function ExpenseRequests() {
-  const { can } = usePermissions();
+  const { can, role } = usePermissions();
+  const [searchParams] = useSearchParams();
   const canCreateRequest = can("finance.expense_request.create");
   const canUpdateRequest = can("finance.expense_request.update");
   const canDeleteRequest = can("finance.expense_request.delete");
@@ -127,6 +150,7 @@ function ExpenseRequests() {
   const canApproveRequest = can("finance.expense_request.approve");
   const canRejectRequest = can("finance.expense_request.reject");
   const canMarkPaidRequest = can("finance.expense_request.mark_paid");
+  const canShowMarkPaid = canMarkPaidRequest && role !== "principal";
 
   const [financialYears, setFinancialYears] = useState([]);
   const [selectedFyId, setSelectedFyId] = useState("");
@@ -136,7 +160,9 @@ function ExpenseRequests() {
   const [allocationBalance, setAllocationBalance] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [statusFilter, setStatusFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState(() =>
+    resolveInitialExpenseStatusFilter(role, searchParams.get("status"))
+  );
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [rejectModalOpen, setRejectModalOpen] = useState(false);
   const [paidModalOpen, setPaidModalOpen] = useState(false);
@@ -181,10 +207,10 @@ function ExpenseRequests() {
       }
     };
 
-    if (canMarkPaidRequest) {
+    if (canShowMarkPaid) {
       loadStockConfig();
     }
-  }, [canMarkPaidRequest]);
+  }, [canShowMarkPaid]);
 
   const loadReferenceData = useCallback(async () => {
     try {
@@ -274,7 +300,11 @@ function ExpenseRequests() {
       }
 
       try {
-        const response = await fetchAllocationBalance(formData.budget_allocation_id);
+        const params = {};
+        if (editingRequest?.id) {
+          params.exclude_request_id = editingRequest.id;
+        }
+        const response = await fetchAllocationBalance(formData.budget_allocation_id, params);
         setAllocationBalance(response?.data?.data || null);
       } catch {
         setAllocationBalance(null);
@@ -282,7 +312,7 @@ function ExpenseRequests() {
     };
 
     loadBalance();
-  }, [formData.budget_allocation_id]);
+  }, [formData.budget_allocation_id, editingRequest?.id]);
 
   const openCreateModal = () => {
     setEditingRequest(null);
@@ -319,6 +349,21 @@ function ExpenseRequests() {
   const handleSubmit = async (event) => {
     event.preventDefault();
     setIsSaving(true);
+
+    const requestedAmount = Number(formData.requested_amount);
+    if (
+      allocationBalance &&
+      Number.isFinite(requestedAmount) &&
+      requestedAmount > Number(allocationBalance.available_balance)
+    ) {
+      toast.error(
+        `Requested amount exceeds available balance (${formatCurrency(
+          allocationBalance.available_balance
+        )}).`
+      );
+      setIsSaving(false);
+      return;
+    }
 
     const payload = {
       budget_allocation_id: Number(formData.budget_allocation_id),
@@ -532,17 +577,17 @@ function ExpenseRequests() {
                       <Link to={`/finance/expense-requests/${request.id}`}>
                         <Button variant="ghost">View</Button>
                       </Link>
-                      {canUpdateRequest && request.status === "draft" ? (
+                      {canUpdateRequest && isEditableExpenseStatus(request.status) ? (
                         <>
                           <Button variant="ghost" onClick={() => openEditModal(request)}>
                             Edit
                           </Button>
                           {canSubmitRequest ? (
                             <Button variant="secondary" onClick={() => handleSubmitRequest(request)}>
-                              Submit
+                              {request.status === "rejected" ? "Resubmit" : "Submit"}
                             </Button>
                           ) : null}
-                          {canDeleteRequest ? (
+                          {canDeleteRequest && request.status === "draft" ? (
                             <Button variant="ghost" onClick={() => handleDelete(request)}>
                               Delete
                             </Button>
@@ -561,7 +606,7 @@ function ExpenseRequests() {
                           ) : null}
                         </>
                       ) : null}
-                      {canMarkPaidRequest && request.status === "approved" ? (
+                      {canShowMarkPaid && request.status === "approved" ? (
                         <Button variant="primary" onClick={() => openPaidModal(request)}>
                           Mark Paid
                         </Button>
@@ -601,8 +646,9 @@ function ExpenseRequests() {
 
           {allocationBalance ? (
             <Alert variant="info">
-              Allocated {formatCurrency(allocationBalance.allocated_amount)} | Committed{" "}
-              {formatCurrency(allocationBalance.committed_amount)} | Available{" "}
+              Allocated {formatCurrency(allocationBalance.allocated_amount)} | Expense committed{" "}
+              {formatCurrency(allocationBalance.committed_amount)} | Activity committed{" "}
+              {formatCurrency(allocationBalance.activity_committed_amount ?? 0)} | Available{" "}
               {formatCurrency(allocationBalance.available_balance)}
             </Alert>
           ) : null}
@@ -662,7 +708,13 @@ function ExpenseRequests() {
               Cancel
             </Button>
             <Button type="submit" variant="primary" disabled={isSaving}>
-              {isSaving ? "Saving..." : editingRequest ? "Update Draft" : "Save Draft"}
+              {isSaving
+                ? "Saving..."
+                : editingRequest
+                  ? editingRequest.status === "rejected"
+                    ? "Save Changes"
+                    : "Update Draft"
+                  : "Save Draft"}
             </Button>
           </FormActions>
         </form>

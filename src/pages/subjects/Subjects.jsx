@@ -1,12 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
 import DashboardLayout from "../../layouts/DashboardLayout";
 import API from "../../api/axios";
+import { usePermissions } from "../../hooks/usePermissions";
 
 const emptyForm = {
   subject_name: "",
 };
 
 function Subjects() {
+  const { can } = usePermissions();
+  const canCreateSubject = can("subject.create");
+  const canUpdateSubject = can("subject.update");
+  const canDeleteSubject = can("subject.delete");
+  const showSubjectActions = canUpdateSubject || canDeleteSubject;
+
   const [subjects, setSubjects] = useState([]);
   const [classSections, setClassSections] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -240,13 +247,15 @@ function Subjects() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={openAddModal}
-            className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-4 py-3 font-semibold text-white transition hover:bg-orange-400"
-          >
-            + Add Subject
-          </button>
+          {canCreateSubject ? (
+            <button
+              type="button"
+              onClick={openAddModal}
+              className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-4 py-3 font-semibold text-white transition hover:bg-orange-400"
+            >
+              + Add Subject
+            </button>
+          ) : null}
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
@@ -305,7 +314,9 @@ function Subjects() {
                   <th className="px-4 py-3 font-semibold">Subject Code</th>
                   <th className="px-4 py-3 font-semibold">Applicable Classes</th>
                   <th className="px-4 py-3 font-semibold">Created At</th>
-                  <th className="px-4 py-3 font-semibold">Actions</th>
+                  {showSubjectActions ? (
+                    <th className="px-4 py-3 font-semibold">Actions</th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody>
@@ -321,7 +332,7 @@ function Subjects() {
                   ))
                 ) : filteredSubjects.length === 0 ? (
                   <tr className="border-t border-slate-800">
-                    <td colSpan="5" className="px-4 py-10 text-center text-slate-300">
+                    <td colSpan={showSubjectActions ? 5 : 4} className="px-4 py-10 text-center text-slate-300">
                       No subjects found for the current search.
                     </td>
                   </tr>
@@ -332,24 +343,30 @@ function Subjects() {
                       <td className="px-4 py-4">{subject.subject_code || "—"}</td>
                       <td className="px-4 py-4">{getApplicableClassText(subject)}</td>
                       <td className="px-4 py-4">{subject.created_at ? new Date(subject.created_at).toLocaleString() : "—"}</td>
-                      <td className="px-4 py-4">
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(subject)}
-                            className="rounded-xl bg-amber-400 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-300"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget(subject.id)}
-                            className="rounded-xl bg-rose-500 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-rose-400"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
+                      {showSubjectActions ? (
+                        <td className="px-4 py-4">
+                          <div className="flex flex-wrap gap-2">
+                            {canUpdateSubject ? (
+                              <button
+                                type="button"
+                                onClick={() => openEditModal(subject)}
+                                className="rounded-xl bg-amber-400 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-300"
+                              >
+                                Edit
+                              </button>
+                            ) : null}
+                            {canDeleteSubject ? (
+                              <button
+                                type="button"
+                                onClick={() => setDeleteTarget(subject.id)}
+                                className="rounded-xl bg-rose-500 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-rose-400"
+                              >
+                                Delete
+                              </button>
+                            ) : null}
+                          </div>
+                        </td>
+                      ) : null}
                     </tr>
                   ))
                 )}

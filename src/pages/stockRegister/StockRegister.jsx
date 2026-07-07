@@ -6,11 +6,15 @@ import DashboardLayout from "../../layouts/DashboardLayout";
 import {
   createStockEntry,
   createStockIssue,
+  fetchStockAuditLogs,
   fetchStockConfig,
   fetchStockDashboard,
   fetchStockEntries,
+  fetchStockEntryById,
+  fetchStockIssues,
 } from "../../api/stock";
 import { fetchActivities } from "../../api/activities";
+import { usePermissions } from "../../hooks/usePermissions";
 import {
   PageHeader,
   MetricGrid,
@@ -61,6 +65,19 @@ const formatDate = (value) => {
   });
 };
 
+const formatDateTime = (value) => {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
 const emptyEntryForm = {
   item_name: "",
   category: "",
@@ -83,17 +100,30 @@ const emptyIssueForm = {
 };
 
 function StockRegister() {
+  const { can } = usePermissions();
+  const canCreateEntry = can("stock.entry.create");
+  const canIssueStock = can("stock.issue.create");
+  const canReadAudit = can("stock.audit_log.read");
+
   const [config, setConfig] = useState({ categories: [], low_stock_threshold: 5 });
   const [dashboard, setDashboard] = useState(null);
   const [entries, setEntries] = useState([]);
+  const [pagination, setPagination] = useState({ page: 1, limit: 25, total: 0, total_pages: 1 });
   const [teachers, setTeachers] = useState([]);
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("");
   const [lowStockFilter, setLowStockFilter] = useState("");
+  const [search, setSearch] = useState("");
   const [entryModalOpen, setEntryModalOpen] = useState(false);
   const [issueModalOpen, setIssueModalOpen] = useState(false);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
+  const [detailEntry, setDetailEntry] = useState(null);
+  const [detailIssues, setDetailIssues] = useState([]);
+  const [detailAudit, setDetailAudit] = useState([]);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [issueTargetEntry, setIssueTargetEntry] = useState(null);
   const [entryForm, setEntryForm] = useState(emptyEntryForm);
   const [issueForm, setIssueForm] = useState(emptyIssueForm);
   const [isSaving, setIsSaving] = useState(false);
@@ -109,33 +139,59 @@ function StockRegister() {
     [config.categories]
   );
 
+  const buildFilterParams = useCallback(() => {
+    const params = {};
+
+    if (categoryFilter) params.category = categoryFilter;
+    if (lowStockFilter === "true") params.low_stock = "true";
+    if (search.trim()) params.item_name = search.trim();
+
+    return params;
+  }, [categoryFilter, lowStockFilter, search]);
+
+  const loadReferenceData = useCallback(async () => {
+    try {
+      const [configResponse, teachersResponse, activitiesResponse] = await Promise.all([
+        fetchStockConfig(),
+        API.get("/api/teachers", {
+          headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+          params: { limit: 200 },
+        }),
+        fetchActivities(),
+      ]);
+
+      setConfig(configResponse?.data?.data || { categories: [], low_stock_threshold: 5 });
+      setTeachers(teachersResponse?.data?.data?.teachers || teachersResponse?.data?.data || []);
+      setActivities(
+        Array.isArray(activitiesResponse?.data?.data) ? activitiesResponse.data.data : []
+      );
+    } catch {
+      setConfig({ categories: [], low_stock_threshold: 5 });
+      setTeachers([]);
+      setActivities([]);
+    }
+  }, []);
+
   const loadData = useCallback(async () => {
     setLoading(true);
     setError("");
 
     try {
-      const params = {
-        category: categoryFilter || undefined,
-        low_stock: lowStockFilter === "true" ? "true" : undefined,
-      };
+      const filterParams = buildFilterParams();
+      const [dashboardResponse, entriesResponse] = await Promise.all([
+        fetchStockDashboard(filterParams),
+        fetchStockEntries({
+          ...filterParams,
+          page: pagination.page,
+          limit: pagination.limit,
+        }),
+      ]);
 
-      const [configResponse, dashboardResponse, entriesResponse, teachersResponse, activitiesResponse] =
-        await Promise.all([
-          fetchStockConfig(),
-          fetchStockDashboard(),
-          fetchStockEntries(params),
-          API.get("/api/teachers", {
-            headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
-            params: { limit: 200 },
-          }),
-          fetchActivities(),
-        ]);
-
-      setConfig(configResponse?.data?.data || { categories: [], low_stock_threshold: 5 });
       setDashboard(dashboardResponse?.data?.data || null);
       setEntries(Array.isArray(entriesResponse?.data?.data) ? entriesResponse.data.data : []);
-      setTeachers(teachersResponse?.data?.data?.teachers || teachersResponse?.data?.data || []);
-      setActivities(Array.isArray(activitiesResponse?.data?.data) ? activitiesResponse.data.data : []);
+      if (entriesResponse?.data?.pagination) {
+        setPagination(entriesResponse.data.pagination);
+      }
     } catch (err) {
       setError(err?.response?.data?.message || "Unable to load stock register.");
       setEntries([]);
@@ -143,13 +199,54 @@ function StockRegister() {
     } finally {
       setLoading(false);
     }
-  }, [categoryFilter, lowStockFilter]);
+  }, [buildFilterParams, pagination.limit, pagination.page]);
+
+  useEffect(() => {
+    loadReferenceData();
+  }, [loadReferenceData]);
 
   useEffect(() => {
     loadData();
   }, [loadData]);
 
+  const openDetailModal = async (entryId) => {
+    setDetailModalOpen(true);
+    setDetailLoading(true);
+    setDetailEntry(null);
+    setDetailIssues([]);
+    setDetailAudit([]);
+
+    try {
+      const requests = [
+        fetchStockEntryById(entryId),
+        fetchStockIssues({ stock_entry_id: entryId, limit: 100 }),
+      ];
+
+      if (canReadAudit) {
+        requests.push(fetchStockAuditLogs({ stock_entry_id: entryId, limit: 50 }));
+      }
+
+      const [entryResponse, issuesResponse, auditResponse] = await Promise.all(requests);
+
+      setDetailEntry(entryResponse?.data?.data || null);
+      setDetailIssues(Array.isArray(issuesResponse?.data?.data) ? issuesResponse.data.data : []);
+      setDetailAudit(
+        canReadAudit && auditResponse
+          ? Array.isArray(auditResponse?.data?.data)
+            ? auditResponse.data.data
+            : []
+          : []
+      );
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Unable to load stock entry details.");
+      setDetailModalOpen(false);
+    } finally {
+      setDetailLoading(false);
+    }
+  };
+
   const openIssueModal = (entry) => {
+    setIssueTargetEntry(entry);
     setIssueForm({
       ...emptyIssueForm,
       stock_entry_id: String(entry.id),
@@ -185,7 +282,11 @@ function StockRegister() {
       toast.success("Stock entry created");
       setEntryModalOpen(false);
       setEntryForm(emptyEntryForm);
-      await loadData();
+      if (pagination.page !== 1) {
+        setPagination((prev) => ({ ...prev, page: 1 }));
+      } else {
+        await loadData();
+      }
     } catch (err) {
       toast.error(err?.response?.data?.message || "Unable to create stock entry.");
     } finally {
@@ -220,6 +321,7 @@ function StockRegister() {
       toast.success("Stock issued");
       setIssueModalOpen(false);
       setIssueForm(emptyIssueForm);
+      setIssueTargetEntry(null);
       await loadData();
     } catch (err) {
       toast.error(err?.response?.data?.message || "Unable to issue stock.");
@@ -237,11 +339,13 @@ function StockRegister() {
           title="Stock Register"
           description="Track purchased inventory, issue items to teachers or activities, and monitor stock balances."
           actions={
-            <div className="flex flex-wrap gap-2">
-              <Button variant="secondary" onClick={() => setEntryModalOpen(true)}>
-                Add Stock Entry
-              </Button>
-            </div>
+            canCreateEntry ? (
+              <div className="flex flex-wrap gap-2">
+                <Button variant="secondary" onClick={() => setEntryModalOpen(true)}>
+                  Add Stock Entry
+                </Button>
+              </div>
+            ) : null
           }
         />
 
@@ -267,18 +371,38 @@ function StockRegister() {
 
         <FilterToolbar>
           <FilterSelect
+            label="Category"
             value={categoryFilter}
-            onChange={(event) => setCategoryFilter(event.target.value)}
+            onChange={(event) => {
+              setCategoryFilter(event.target.value);
+              setPagination((prev) => ({ ...prev, page: 1 }));
+            }}
             options={categoryOptions}
           />
           <FilterSelect
+            label="Stock Level"
             value={lowStockFilter}
-            onChange={(event) => setLowStockFilter(event.target.value)}
+            onChange={(event) => {
+              setLowStockFilter(event.target.value);
+              setPagination((prev) => ({ ...prev, page: 1 }));
+            }}
             options={[
               { value: "", label: "All stock levels" },
               { value: "true", label: "Low stock only" },
             ]}
           />
+          <label className="block text-sm md:col-span-2">
+            <span className="font-medium text-slate-300">Search item</span>
+            <Input
+              className="mt-1.5"
+              placeholder="Search by item name…"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPagination((prev) => ({ ...prev, page: 1 }));
+              }}
+            />
+          </label>
         </FilterToolbar>
 
         <DataTable>
@@ -294,23 +418,30 @@ function StockRegister() {
               <DataTableHeaderCell align="right">Rate</DataTableHeaderCell>
               <DataTableHeaderCell>Vendor</DataTableHeaderCell>
               <DataTableHeaderCell>Purchased</DataTableHeaderCell>
-              <DataTableHeaderCell align="right">Actions</DataTableHeaderCell>
+              {canIssueStock ? (
+                <DataTableHeaderCell align="right">Actions</DataTableHeaderCell>
+              ) : null}
             </DataTableRow>
           </DataTableHead>
           <DataTableBody>
             {loading ? (
-              <DataTableSkeleton columns={10} rows={5} />
+              <DataTableSkeleton columns={canIssueStock ? 10 : 9} rows={5} />
             ) : entries.length === 0 ? (
-              <DataTableEmpty colSpan={10} message="No stock entries found." />
+              <DataTableEmpty colSpan={canIssueStock ? 10 : 9} message="No stock entries found." />
             ) : (
               entries.map((entry) => (
-                <DataTableRow key={entry.id}>
+                <DataTableRow
+                  key={entry.id}
+                  className="cursor-pointer"
+                  onClick={() => openDetailModal(entry.id)}
+                >
                   <DataTableCell>
                     <div className="font-semibold text-slate-100">{entry.item_name}</div>
                     {entry.expense_request_id ? (
                       <Link
                         to={`/finance/expense-requests/${entry.expense_request_id}`}
                         className="text-xs text-sky-400 hover:underline"
+                        onClick={(event) => event.stopPropagation()}
                       >
                         ER #{entry.expense_request_id}
                       </Link>
@@ -329,20 +460,52 @@ function StockRegister() {
                   <DataTableCell align="right">{formatCurrency(entry.purchase_rate)}</DataTableCell>
                   <DataTableCell>{entry.vendor_name || "—"}</DataTableCell>
                   <DataTableCell>{formatDate(entry.purchase_date)}</DataTableCell>
-                  <DataTableCell align="right">
-                    {entry.available_quantity > 0 ? (
-                      <Button variant="ghost" onClick={() => openIssueModal(entry)}>
-                        Issue
-                      </Button>
-                    ) : (
-                      "—"
-                    )}
-                  </DataTableCell>
+                  {canIssueStock ? (
+                    <DataTableCell align="right">
+                      {entry.available_quantity > 0 ? (
+                        <Button
+                          variant="ghost"
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            openIssueModal(entry);
+                          }}
+                        >
+                          Issue
+                        </Button>
+                      ) : (
+                        "—"
+                      )}
+                    </DataTableCell>
+                  ) : null}
                 </DataTableRow>
               ))
             )}
           </DataTableBody>
         </DataTable>
+
+        {!loading && pagination.total_pages > 1 ? (
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-sm text-slate-500">
+              Page {pagination.page} of {pagination.total_pages} ({pagination.total} entries)
+            </p>
+            <div className="flex gap-2">
+              <Button
+                variant="secondary"
+                disabled={pagination.page <= 1}
+                onClick={() => setPagination((prev) => ({ ...prev, page: prev.page - 1 }))}
+              >
+                Previous
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={pagination.page >= pagination.total_pages}
+                onClick={() => setPagination((prev) => ({ ...prev, page: prev.page + 1 }))}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        ) : null}
 
         <div className="space-y-3">
           <h3 className="text-base font-semibold text-slate-100">Recent Issues</h3>
@@ -379,6 +542,143 @@ function StockRegister() {
           </DataTable>
         </div>
       </div>
+
+      <ErpModal
+        isOpen={detailModalOpen}
+        onClose={() => setDetailModalOpen(false)}
+        title={detailLoading ? "Loading…" : detailEntry?.item_name || "Stock Entry"}
+        size="lg"
+      >
+        {detailLoading ? (
+          <p className="text-slate-400">Loading entry details…</p>
+        ) : detailEntry ? (
+          <div className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-500">Category</p>
+                <p className="mt-1 text-white">{detailEntry.category_label || detailEntry.category}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-500">Source</p>
+                <p className="mt-1 text-white capitalize">{detailEntry.source || "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-500">Received</p>
+                <p className="mt-1 text-white">{detailEntry.quantity}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-500">Issued</p>
+                <p className="mt-1 text-white">{detailEntry.issued_quantity}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-500">Available</p>
+                <p className="mt-1 text-white">
+                  {detailEntry.available_quantity}
+                  {detailEntry.is_low_stock ? (
+                    <Badge variant="amber" className="ml-2">
+                      Low
+                    </Badge>
+                  ) : null}
+                </p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-500">Purchase Rate</p>
+                <p className="mt-1 text-white">{formatCurrency(detailEntry.purchase_rate)}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-500">Vendor</p>
+                <p className="mt-1 text-white">{detailEntry.vendor_name || "—"}</p>
+              </div>
+              <div>
+                <p className="text-xs uppercase tracking-wide text-slate-500">Purchased</p>
+                <p className="mt-1 text-white">{formatDate(detailEntry.purchase_date)}</p>
+              </div>
+              <div className="md:col-span-2">
+                <p className="text-xs uppercase tracking-wide text-slate-500">Expense Request</p>
+                <p className="mt-1 text-white">
+                  {detailEntry.expense_request_id ? (
+                    <Link
+                      to={`/finance/expense-requests/${detailEntry.expense_request_id}`}
+                      className="text-primary-400 hover:text-primary-300 hover:underline"
+                      onClick={() => setDetailModalOpen(false)}
+                    >
+                      #{detailEntry.expense_request_id}
+                    </Link>
+                  ) : (
+                    "—"
+                  )}
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <h4 className="text-sm font-semibold text-slate-200">Issue History</h4>
+              <DataTable>
+                <DataTableColGroup widths={["20%", "12%", "18%", "16%", "18%", "16%"]} />
+                <DataTableHead>
+                  <DataTableRow>
+                    <DataTableHeaderCell>Date</DataTableHeaderCell>
+                    <DataTableHeaderCell align="right">Qty</DataTableHeaderCell>
+                    <DataTableHeaderCell>Type</DataTableHeaderCell>
+                    <DataTableHeaderCell>Issued To</DataTableHeaderCell>
+                    <DataTableHeaderCell>By</DataTableHeaderCell>
+                    <DataTableHeaderCell>Remarks</DataTableHeaderCell>
+                  </DataTableRow>
+                </DataTableHead>
+                <DataTableBody>
+                  {detailIssues.length === 0 ? (
+                    <DataTableEmpty colSpan={6} message="No issues recorded for this entry." />
+                  ) : (
+                    detailIssues.map((issue) => (
+                      <DataTableRow key={issue.id}>
+                        <DataTableCell>{formatDate(issue.issue_date)}</DataTableCell>
+                        <DataTableCell align="right">{issue.issued_quantity}</DataTableCell>
+                        <DataTableCell className="capitalize">{issue.issue_type}</DataTableCell>
+                        <DataTableCell>{issue.issued_to || "—"}</DataTableCell>
+                        <DataTableCell>{issue.created_by_name || "—"}</DataTableCell>
+                        <DataTableCell>{issue.remarks || "—"}</DataTableCell>
+                      </DataTableRow>
+                    ))
+                  )}
+                </DataTableBody>
+              </DataTable>
+            </div>
+
+            {canReadAudit ? (
+              <div className="space-y-3">
+                <h4 className="text-sm font-semibold text-slate-200">Audit Trail</h4>
+                <DataTable>
+                  <DataTableColGroup widths={["22%", "18%", "18%", "42%"]} />
+                  <DataTableHead>
+                    <DataTableRow>
+                      <DataTableHeaderCell>When</DataTableHeaderCell>
+                      <DataTableHeaderCell>Action</DataTableHeaderCell>
+                      <DataTableHeaderCell>By</DataTableHeaderCell>
+                      <DataTableHeaderCell>Entity</DataTableHeaderCell>
+                    </DataTableRow>
+                  </DataTableHead>
+                  <DataTableBody>
+                    {detailAudit.length === 0 ? (
+                      <DataTableEmpty colSpan={4} message="No audit events for this entry." />
+                    ) : (
+                      detailAudit.map((log) => (
+                        <DataTableRow key={log.id}>
+                          <DataTableCell>{formatDateTime(log.created_at)}</DataTableCell>
+                          <DataTableCell>{log.action}</DataTableCell>
+                          <DataTableCell>{log.actor_name || "—"}</DataTableCell>
+                          <DataTableCell>
+                            {log.entity_type} #{log.entity_id}
+                          </DataTableCell>
+                        </DataTableRow>
+                      ))
+                    )}
+                  </DataTableBody>
+                </DataTable>
+              </div>
+            ) : null}
+          </div>
+        ) : null}
+      </ErpModal>
 
       <ErpModal
         isOpen={entryModalOpen}
@@ -448,6 +748,12 @@ function StockRegister() {
       </ErpModal>
 
       <ErpModal isOpen={issueModalOpen} onClose={() => setIssueModalOpen(false)} title="Issue Stock">
+        {issueTargetEntry ? (
+          <Alert variant="info" className="mb-4">
+            Issuing <strong>{issueTargetEntry.item_name}</strong> — available{" "}
+            {issueTargetEntry.available_quantity} {issueTargetEntry.unit}
+          </Alert>
+        ) : null}
         <form onSubmit={handleIssueStock} className="space-y-4">
           <FormField label="Issue Type">
             <Select name="issue_type" value={issueForm.issue_type} onChange={handleIssueInputChange}>
@@ -510,6 +816,7 @@ function StockRegister() {
               type="number"
               min="0.01"
               step="0.01"
+              max={issueTargetEntry?.available_quantity || undefined}
               value={issueForm.issued_quantity}
               onChange={handleIssueInputChange}
               required

@@ -36,22 +36,13 @@ function TeacherProfile() {
           headers: getAuthHeaders(),
         });
         
-        // Also load meta data for email/subject fallback if needed, similar to Teachers.jsx
-        const STORAGE_KEY = "school-erp-teacher-meta";
-        let meta = {};
-        try {
-          const saved = localStorage.getItem(STORAGE_KEY);
-          meta = saved ? JSON.parse(saved) : {};
-        } catch (e) {}
-        
         const rawTeacher = response.data.data;
-        const teacherMeta = meta[rawTeacher.id] || {};
         
         setTeacher({
           ...rawTeacher,
-          email: teacherMeta.email || rawTeacher.email || "",
-          subject: teacherMeta.subject || rawTeacher.subject || rawTeacher.designation || "",
-          qualification: teacherMeta.qualification || rawTeacher.qualification || "",
+          email: rawTeacher.email || "",
+          subject: rawTeacher.subject || "",
+          qualification: rawTeacher.qualification || "",
         });
 
         try {

@@ -1,37 +1,25 @@
 import { useState } from "react";
 import API from "../../../api/axios";
 import Permission from "../../../components/Permission";
-import {
+import { usePermissions } from "../../../hooks/usePermissions";
+import TeacherStatusBadge, {
   TEACHER_STATUS_OPTIONS,
   TeacherStatusSelect,
 } from "./TeacherStatusBadge";
-
-const STORAGE_KEY = "school-erp-teacher-meta";
-
-const loadMeta = () => {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    return saved ? JSON.parse(saved) : {};
-  } catch {
-    return {};
-  }
-};
-
-const saveMeta = (meta) => {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(meta));
-};
 
 const buildFormFromTeacher = (teacher) => ({
   fullName: teacher.teacher_name || "",
   email: teacher.email || "",
   phone: teacher.phone || "",
-  subject: teacher.subject || teacher.designation || "",
+  subject: teacher.subject || "",
   qualification: teacher.qualification || "",
   gender: teacher.gender || "",
   age: teacher.age || 30,
 });
 
 function TeacherPersonalDetailsTab({ teacher, onTeacherUpdate }) {
+  const { can } = usePermissions();
+  const canUpdateTeacher = can("teacher.update");
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState(() => buildFormFromTeacher(teacher));
   const [isSaving, setIsSaving] = useState(false);
@@ -134,7 +122,7 @@ function TeacherPersonalDetailsTab({ teacher, onTeacherUpdate }) {
     }
 
     if (!subject) {
-      setError("Subject is required.");
+      setError("Teaching subject is required.");
       return;
     }
 
@@ -160,33 +148,30 @@ function TeacherPersonalDetailsTab({ teacher, onTeacherUpdate }) {
     try {
       const payload = {
         teacher_name: fullName,
-        designation: subject,
-        phone,
-        age,
-        gender: formData.gender,
-      };
-
-      await API.put(`/api/teachers/${teacher.id}`, payload, {
-        headers: getAuthHeaders(),
-      });
-
-      const meta = loadMeta();
-      const nextMeta = {
-        ...meta,
-        [teacher.id]: { email, subject, qualification },
-      };
-      saveMeta(nextMeta);
-
-      onTeacherUpdate({
-        ...teacher,
-        teacher_name: fullName,
         email,
         phone,
         subject,
-        designation: subject,
         qualification,
-        gender: formData.gender,
         age,
+        gender: formData.gender,
+      };
+
+      const response = await API.put(`/api/teachers/${teacher.id}`, payload, {
+        headers: getAuthHeaders(),
+      });
+
+      const updated = response?.data?.data;
+
+      onTeacherUpdate({
+        ...teacher,
+        ...updated,
+        teacher_name: updated?.teacher_name || fullName,
+        email: updated?.email ?? email,
+        phone: updated?.phone ?? phone,
+        subject: updated?.subject ?? subject,
+        qualification: updated?.qualification ?? qualification,
+        gender: updated?.gender ?? formData.gender,
+        age: updated?.age ?? age,
       });
 
       setSuccessMessage("Teacher details updated successfully.");
@@ -224,7 +209,7 @@ function TeacherPersonalDetailsTab({ teacher, onTeacherUpdate }) {
       case "qualification":
         return teacher.qualification || "—";
       case "subject":
-        return teacher.subject || teacher.designation || "—";
+        return teacher.subject || "—";
       default:
         return "—";
     }
@@ -264,13 +249,17 @@ function TeacherPersonalDetailsTab({ teacher, onTeacherUpdate }) {
           <div>
             <p className={labelClass}>Employment Status</p>
             <div className="mt-1">
-              <TeacherStatusSelect
-                compact
-                status={teacher.status || "active"}
-                onChange={handleStatusChange}
-                disabled={isUpdatingStatus}
-                ariaLabel={`Change employment status for ${teacher.teacher_name || "staff member"}`}
-              />
+              {canUpdateTeacher ? (
+                <TeacherStatusSelect
+                  compact
+                  status={teacher.status || "active"}
+                  onChange={handleStatusChange}
+                  disabled={isUpdatingStatus}
+                  ariaLabel={`Change employment status for ${teacher.teacher_name || "staff member"}`}
+                />
+              ) : (
+                <TeacherStatusBadge compact status={teacher.status || "active"} />
+              )}
             </div>
           </div>
 

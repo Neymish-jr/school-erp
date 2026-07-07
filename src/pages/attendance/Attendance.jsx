@@ -8,8 +8,9 @@ import {
 import API from "../../api/axios";
 import DashboardLayout from "../../layouts/DashboardLayout";
 import { isTeacherLegacy } from "../../constants/roles";
+import { usePermissions } from "../../hooks/usePermissions";
 
-const ATTENDANCE_STATUSES = ["Present", "Absent", "Leave"];
+const ATTENDANCE_STATUSES = ["Present", "Absent", "Late", "Leave"];
 const DEFAULT_PERIOD = 1;
 
 const getTodayDateString = () => new Date().toISOString().split("T")[0];
@@ -62,7 +63,64 @@ const buildDefaultAttendanceMap = (students) => {
   }, {});
 };
 
+const normalizeAttendanceDate = (value) => {
+  if (!value) {
+    return "";
+  }
+
+  return String(value).split("T")[0];
+};
+
+const fetchAllStudentsForClassSection = async (studentClass, section) => {
+  const firstPage = await API.get("/api/students", {
+    headers: getAuthHeaders(),
+    params: {
+      page: 1,
+      limit: 100,
+      search: "",
+      student_class: studentClass,
+      section,
+    },
+  });
+
+  const payload = firstPage?.data?.data || {};
+  const totalPages = Number(payload.totalPages || 1);
+  const loadedStudents = Array.isArray(payload.students) ? payload.students : [];
+  const allStudents = [...loadedStudents];
+
+  for (let page = 2; page <= totalPages; page += 1) {
+    const response = await API.get("/api/students", {
+      headers: getAuthHeaders(),
+      params: {
+        page,
+        limit: 100,
+        search: "",
+        student_class: studentClass,
+        section,
+      },
+    });
+
+    const nestedData = response?.data?.data || {};
+
+    if (Array.isArray(nestedData.students)) {
+      allStudents.push(...nestedData.students);
+    }
+  }
+
+  return allStudents;
+};
+
+const ATTENDANCE_STATUS_STYLES = {
+  Present: "text-emerald-200",
+  Absent: "text-rose-200",
+  Late: "text-sky-200",
+  Leave: "text-amber-200",
+};
+
 function Attendance() {
+  const { can } = usePermissions();
+  const canMarkAttendance = can("attendance.mark");
+
   const [classes, setClasses] = useState([]);
   const [sections, setSections] = useState([]);
   const [students, setStudents] = useState([]);
@@ -175,60 +233,54 @@ function Attendance() {
       }
     };
 
+    fetchMetadata();
+  }, []);
+
+  useEffect(() => {
+    if (!hasExactFilterSelection) {
+      setStudents([]);
+      setIsLoadingStudents(false);
+      return;
+    }
+
+    let isCurrentRequest = true;
+
     const fetchStudents = async () => {
       setIsLoadingStudents(true);
       setError("");
 
       try {
-        const firstPage = await API.get("/api/students", {
-          headers: getAuthHeaders(),
-          params: {
-            page: 1,
-            limit: 100,
-            search: "",
-          },
-        });
+        const allStudents = await fetchAllStudentsForClassSection(
+          selectedClass,
+          selectedSection
+        );
 
-        const payload = firstPage?.data?.data || {};
-        const totalPages = Number(payload.totalPages || 1);
-        const loadedStudents = Array.isArray(payload.students)
-          ? payload.students
-          : [];
-
-        const allStudents = [...loadedStudents];
-
-        for (let page = 2; page <= totalPages; page += 1) {
-          const response = await API.get("/api/students", {
-            headers: getAuthHeaders(),
-            params: {
-              page,
-              limit: 100,
-              search: "",
-            },
-          });
-
-          const nestedData = response?.data?.data || {};
-
-          if (Array.isArray(nestedData.students)) {
-            allStudents.push(...nestedData.students);
-          }
+        if (!isCurrentRequest) {
+          return;
         }
 
         setStudents(allStudents);
       } catch (err) {
-        setStudents([]);
-        setError(
-          err?.response?.data?.message ||
-            "Unable to load students right now. Please try again."
-        );
+        if (isCurrentRequest) {
+          setStudents([]);
+          setError(
+            err?.response?.data?.message ||
+              "Unable to load students right now. Please try again."
+          );
+        }
       } finally {
-        setIsLoadingStudents(false);
+        if (isCurrentRequest) {
+          setIsLoadingStudents(false);
+        }
       }
     };
 
-    fetchMetadata();
     fetchStudents();
-  }, []);
+
+    return () => {
+      isCurrentRequest = false;
+    };
+  }, [hasExactFilterSelection, selectedClass, selectedSection]);
 
   useEffect(() => {
     if (!hasExactFilterSelection) {
@@ -256,6 +308,12 @@ function Attendance() {
       try {
         const response = await API.get("/api/attendance", {
           headers: getAuthHeaders(),
+          params: {
+            date: selectedDate,
+            period: DEFAULT_PERIOD,
+            student_class: selectedClass,
+            section: selectedSection,
+          },
         });
 
         const records = Array.isArray(response?.data) ? response.data : [];
@@ -265,7 +323,7 @@ function Attendance() {
         const nextRecordByStudent = {};
 
         records.forEach((record) => {
-          if (record.date !== selectedDate) {
+          if (normalizeAttendanceDate(record.date) !== selectedDate) {
             return;
           }
 
@@ -320,7 +378,14 @@ function Attendance() {
     return () => {
       isCurrentRequest = false;
     };
-  }, [filteredStudents, hasExactFilterSelection, selectedDate, students.length]);
+  }, [
+    filteredStudents,
+    hasExactFilterSelection,
+    selectedClass,
+    selectedDate,
+    selectedSection,
+    students.length,
+  ]);
 
   const handleAttendanceChange = (studentId, status) => {
     setAttendanceByStudent((current) => ({
@@ -371,98 +436,63 @@ function Attendance() {
       return;
     }
 
-    const submissionRequests = filteredStudents.map((student) => {
-      const existingRecord = attendanceRecordByStudent[Number(student.id)];
-      const payload = {
-        student_id: student.id,
-        date: selectedDate,
-        period: DEFAULT_PERIOD,
-        status: attendanceByStudent[student.id],
-      };
+    try {
+      const records = filteredStudents.map((student) => {
+        const existingRecord = attendanceRecordByStudent[Number(student.id)];
+        const record = {
+          student_id: student.id,
+          status: attendanceByStudent[student.id],
+        };
 
-      const request = existingRecord
-        ? API.put(
-            `/api/attendance/${existingRecord.id}`,
-            {
-              status: attendanceByStudent[student.id],
-            },
-            {
-              headers: getAuthHeaders(),
-            }
-          )
-        : API.post("/api/attendance", payload, {
-            headers: getAuthHeaders(),
-          });
+        if (existingRecord?.id) {
+          record.attendance_id = existingRecord.id;
+        }
 
-      return {
-        studentId: student.id,
-        isExisting: Boolean(existingRecord),
-        request,
-      };
-    });
+        return record;
+      });
 
-    const submissionResults = await Promise.allSettled(
-      submissionRequests.map((item) => item.request)
-    );
-    const successCount = submissionResults.filter(
-      (result) => result.status === "fulfilled"
-    ).length;
-    const failedResults = submissionResults.filter(
-      (result) => result.status === "rejected"
-    );
-    const createCount = submissionRequests.filter((item, index) => {
-      return !item.isExisting && submissionResults[index].status === "fulfilled";
-    }).length;
-    const updateCount = submissionRequests.filter((item, index) => {
-      return item.isExisting && submissionResults[index].status === "fulfilled";
-    }).length;
+      const response = await API.post(
+        "/api/attendance/bulk",
+        {
+          date: selectedDate,
+          period: DEFAULT_PERIOD,
+          records,
+        },
+        {
+          headers: getAuthHeaders(),
+        }
+      );
 
-    if (failedResults.length === 0) {
+      const { created = 0, updated = 0, records: savedRecords = [] } =
+        response?.data || {};
       const nextRecordByStudent = { ...attendanceRecordByStudent };
 
-      submissionResults.forEach((result, index) => {
-        if (result.status !== "fulfilled") {
-          return;
-        }
-
-        const recordId = result.value?.data?.id;
-
-        if (!recordId) {
-          return;
-        }
-
-        nextRecordByStudent[Number(submissionRequests[index].studentId)] = {
-          id: recordId,
-          status: attendanceByStudent[submissionRequests[index].studentId],
+      savedRecords.forEach((row) => {
+        nextRecordByStudent[Number(row.student_id)] = {
+          id: row.id,
+          status: row.status,
         };
       });
 
       setAttendanceRecordByStudent(nextRecordByStudent);
       setSuccess(
-        `Attendance saved for ${successCount} student(s): ${createCount} created, ${updateCount} updated.`
+        `Attendance saved for ${savedRecords.length} student(s): ${created} created, ${updated} updated.`
       );
       setInfoMessage(
-        updateCount > 0
-          ? `Attendance updated for ${updateCount} student(s).`
-          : `Attendance created for ${createCount} student(s).`
+        updated > 0
+          ? `Attendance updated for ${updated} student(s).`
+          : `Attendance created for ${created} student(s).`
       );
-    } else {
-      const failedMessages = failedResults
-        .map((result) => {
-          const normalizedError =
-            result.reason?.response?.data?.error ||
-            result.reason?.response?.data?.message ||
-            result.reason?.message ||
-            "Unknown error";
-
-          return normalizedError === "Attendance already marked"
-            ? "Attendance already marked for this date"
-            : normalizedError;
-        })
-        .join(" | ");
+    } catch (err) {
+      const normalizedError =
+        err?.response?.data?.error ||
+        err?.response?.data?.message ||
+        "Unable to save attendance right now.";
 
       setError(
-        `Saved ${successCount} record(s), but ${failedResults.length} failed: ${failedMessages}`
+        normalizedError === "Attendance already marked"
+          ? "Attendance already marked for this date"
+          : normalizedError
       );
       setInfoMessage("");
     }
@@ -509,18 +539,22 @@ function Attendance() {
               Attendance
             </h1>
             <p className="mt-2 max-w-2xl text-slate-300">
-              Filter the class and section, choose a date, and mark student attendance in one place.
+              {canMarkAttendance
+                ? "Filter the class and section, choose a date, and mark student attendance in one place."
+                : "Review student attendance by class, section, and date. Marking is handled by teaching staff."}
             </p>
           </div>
 
-          <div className="rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-3 text-sm text-slate-200">
-            <p className="font-semibold text-white">Submitting for period 1</p>
-            <p className="mt-1 text-slate-300">
-              {hasExistingAttendance
-                ? "Attendance already marked for this date"
-                : "Use the bulk submit button after reviewing the attendance selections."}
-            </p>
-          </div>
+          {canMarkAttendance ? (
+            <div className="rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-3 text-sm text-slate-200">
+              <p className="font-semibold text-white">Submitting for period 1</p>
+              <p className="mt-1 text-slate-300">
+                {hasExistingAttendance
+                  ? "Attendance already marked for this date"
+                  : "Use the bulk submit button after reviewing the attendance selections."}
+              </p>
+            </div>
+          ) : null}
         </div>
 
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -549,7 +583,9 @@ function Attendance() {
         </div>
 
         <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-4 sm:p-6">
-          <div className="grid gap-4 lg:grid-cols-4">
+          <div
+            className={`grid gap-4 ${canMarkAttendance ? "lg:grid-cols-4" : "lg:grid-cols-3"}`}
+          >
             <label className="text-sm font-medium text-slate-200">
               Class
               <select
@@ -608,25 +644,27 @@ function Attendance() {
               />
             </label>
 
-            <div className="flex items-end">
-              <button
-                type="button"
-                onClick={handleBulkSubmit}
-                disabled={
-                  isSubmitting ||
-                  isLoadingMetadata ||
-                  isLoadingStudents ||
-                  isLoadingExistingAttendance
-                }
-                className="w-full rounded-2xl bg-orange-500 px-4 py-3 font-semibold text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {isSubmitting
-                  ? "Saving..."
-                  : hasExistingAttendance
-                    ? "Save Attendance Changes"
-                    : "Bulk Submit Attendance"}
-              </button>
-            </div>
+            {canMarkAttendance ? (
+              <div className="flex items-end">
+                <button
+                  type="button"
+                  onClick={handleBulkSubmit}
+                  disabled={
+                    isSubmitting ||
+                    isLoadingMetadata ||
+                    isLoadingStudents ||
+                    isLoadingExistingAttendance
+                  }
+                  className="w-full rounded-2xl bg-orange-500 px-4 py-3 font-semibold text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isSubmitting
+                    ? "Saving..."
+                    : hasExistingAttendance
+                      ? "Save Attendance Changes"
+                      : "Bulk Submit Attendance"}
+                </button>
+              </div>
+            ) : null}
           </div>
         </div>
 
@@ -673,6 +711,12 @@ function Attendance() {
                       </td>
                     </tr>
                   ))
+                ) : !hasExactFilterSelection ? (
+                  <tr className="border-t border-slate-800">
+                    <td colSpan="3" className="px-4 py-10 text-center text-slate-300">
+                      Select a class and section to load the attendance register.
+                    </td>
+                  </tr>
                 ) : filteredStudents.length === 0 ? (
                   <tr className="border-t border-slate-800">
                     <td colSpan="3" className="px-4 py-10 text-center text-slate-300">
@@ -690,19 +734,31 @@ function Attendance() {
                       </td>
                       <td className="px-4 py-4 text-white">{student.name}</td>
                       <td className="px-4 py-4">
-                        <select
-                          value={attendanceByStudent[student.id] || "Present"}
-                          onChange={(event) =>
-                            handleAttendanceChange(student.id, event.target.value)
-                          }
-                          className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none transition focus:border-orange-400"
-                        >
-                          {ATTENDANCE_STATUSES.map((status) => (
-                            <option key={status} value={status}>
-                              {status}
-                            </option>
-                          ))}
-                        </select>
+                        {canMarkAttendance ? (
+                          <select
+                            value={attendanceByStudent[student.id] || "Present"}
+                            onChange={(event) =>
+                              handleAttendanceChange(student.id, event.target.value)
+                            }
+                            className="w-full rounded-2xl border border-slate-700 bg-slate-950 px-3 py-2 text-white outline-none transition focus:border-orange-400"
+                          >
+                            {ATTENDANCE_STATUSES.map((status) => (
+                              <option key={status} value={status}>
+                                {status}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span
+                            className={`font-medium ${
+                              ATTENDANCE_STATUS_STYLES[
+                                attendanceByStudent[student.id] || "Present"
+                              ] || "text-slate-200"
+                            }`}
+                          >
+                            {attendanceByStudent[student.id] || "Present"}
+                          </span>
+                        )}
                       </td>
                     </tr>
                   ))

@@ -3,6 +3,7 @@ import API from "../../../api/axios";
 import { Icon } from "@iconify/react";
 import { toast } from "react-toastify";
 import Modal from "../../../components/Modal";
+import { usePermissions } from "../../../hooks/usePermissions";
 
 function TeacherStaffPostAssignmentsTab({
   teacherId,
@@ -25,6 +26,9 @@ function TeacherStaffPostAssignmentsTab({
   const [relieveFormData, setRelieveFormData] = useState({
     assignment_end_date: new Date().toISOString().split("T")[0],
   });
+  const { can } = usePermissions();
+  const canAssignDesignation = can("staff_post_assignment.assign");
+  const canRelieveDesignation = can("staff_post_assignment.relieve");
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem("token");
@@ -155,14 +159,16 @@ function TeacherStaffPostAssignmentsTab({
         {!embedded && (
           <h3 className="text-lg font-bold text-white">Designation Assignments</h3>
         )}
-        <button
-          onClick={() => setIsAssignModalOpen(true)}
-          disabled={!!currentAssignment} // Disable if an active assignment exists
-          className="rounded-xl bg-orange-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-orange-400 disabled:opacity-50 disabled:cursor-not-allowed"
-        >
-          <Icon icon="mdi:plus-circle" className="h-5 w-5 inline-block mr-1" />
-          Assign Designation
-        </button>
+        {canAssignDesignation ? (
+          <button
+            onClick={() => setIsAssignModalOpen(true)}
+            disabled={!!currentAssignment}
+            className="rounded-xl bg-orange-500 px-3 py-2 text-sm font-semibold text-white transition hover:bg-orange-400 disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            <Icon icon="mdi:plus-circle" className="h-5 w-5 inline-block mr-1" />
+            Assign Designation
+          </button>
+        ) : null}
       </div>
 
       {isLoading ? (
@@ -199,12 +205,14 @@ function TeacherStaffPostAssignmentsTab({
                 <p className="text-white">{new Date(currentAssignment.assignment_start_date).toLocaleDateString()}</p>
               </div>
               <div className="md:col-span-2 mt-4">
-                <button
-                  onClick={() => setIsRelieveModalOpen(true)}
-                  className="rounded-xl bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-400 transition hover:bg-rose-500 hover:text-white"
-                >
-                  Relieve Assignment
-                </button>
+                {canRelieveDesignation ? (
+                  <button
+                    onClick={() => setIsRelieveModalOpen(true)}
+                    className="rounded-xl bg-rose-500/10 px-4 py-2 text-sm font-semibold text-rose-400 transition hover:bg-rose-500 hover:text-white"
+                  >
+                    Relieve Assignment
+                  </button>
+                ) : null}
               </div>
             </div>
           ) : (

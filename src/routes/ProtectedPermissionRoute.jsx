@@ -1,5 +1,9 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { getRoutePermissionRule } from "../config/routePermissions";
+import {
+  shouldRedirectTeacherFromPath,
+  TEACHER_BLOCKED_REDIRECT,
+} from "../config/teacherRouteGuards";
 import { usePermissions } from "../hooks/usePermissions";
 
 function PermissionLoadingScreen() {
@@ -18,7 +22,7 @@ function PermissionLoadingScreen() {
 
 function ProtectedPermissionRoute({ children }) {
   const { pathname } = useLocation();
-  const { loading, isAuthenticated, schoolContextReady, canAny, canAll } = usePermissions();
+  const { loading, isAuthenticated, schoolContextReady, canAny, canAll, role } = usePermissions();
   const rule = getRoutePermissionRule(pathname);
 
   if (loading || !schoolContextReady) {
@@ -38,6 +42,10 @@ function ProtectedPermissionRoute({ children }) {
 
   if (!allowed) {
     return <Navigate to="/unauthorized" replace />;
+  }
+
+  if (shouldRedirectTeacherFromPath(pathname, role)) {
+    return <Navigate to={TEACHER_BLOCKED_REDIRECT} replace />;
   }
 
   return children;

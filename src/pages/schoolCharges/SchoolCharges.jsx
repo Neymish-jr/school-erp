@@ -1,6 +1,7 @@
 import { useMemo } from "react";
-import { useSearchParams } from "react-router-dom";
+import { Navigate, useSearchParams } from "react-router-dom";
 import DashboardLayout from "../../layouts/DashboardLayout";
+import { usePermissions } from "../../hooks/usePermissions";
 import ChargeCatalogPanel from "./components/ChargeCatalogPanel";
 import TeacherAdministrativeChargesManager from "../teacherAdministrativeCharges/components/TeacherAdministrativeChargesManager";
 
@@ -13,12 +14,17 @@ const TABS = [
 ];
 
 function SchoolCharges() {
+  const { role, loading } = usePermissions();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const activeTab = useMemo(() => {
     const tab = searchParams.get("tab");
     return tab === TAB_ASSIGNMENTS ? TAB_ASSIGNMENTS : TAB_CATALOG;
   }, [searchParams]);
+
+  if (!loading && role === "teacher") {
+    return <Navigate to="/my-responsibilities" replace />;
+  }
 
   const setActiveTab = (tabId) => {
     setSearchParams({ tab: tabId }, { replace: true });

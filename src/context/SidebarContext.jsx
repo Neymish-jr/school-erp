@@ -26,11 +26,11 @@ const readExpandedSection = () => {
 
 export function SidebarProvider({ children }) {
   const { pathname } = useLocation();
-  const role = getAuthRole();
-  const { canAny, canAll, loading } = usePermissions();
+  const legacyRole = getAuthRole();
+  const { canAny, canAll, loading, role: canonicalRole } = usePermissions();
   const navigation = useMemo(
-    () => (loading ? [] : getVisibleNavigation(role, canAny, canAll)),
-    [role, canAny, canAll, loading]
+    () => (loading ? [] : getVisibleNavigation(legacyRole, canAny, canAll, canonicalRole)),
+    [legacyRole, canonicalRole, canAny, canAll, loading]
   );
 
   const [isCollapsed, setIsCollapsed] = useState(readCollapsedState);

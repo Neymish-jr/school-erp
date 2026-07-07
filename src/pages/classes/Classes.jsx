@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import DashboardLayout from "../../layouts/DashboardLayout";
 import API from "../../api/axios";
+import { usePermissions } from "../../hooks/usePermissions";
 
 const emptyForm = {
   class_name: "",
@@ -11,6 +12,12 @@ const classNamePattern = /^[A-Za-z0-9][A-Za-z0-9\s-]*$/;
 const sectionNamePattern = /^[A-Za-z0-9]+$/;
 
 function Classes() {
+  const { can } = usePermissions();
+  const canCreateClassSection = can("class_section.create");
+  const canUpdateClassSection = can("class_section.update");
+  const canDeleteClassSection = can("class_section.delete");
+  const showClassActions = canUpdateClassSection || canDeleteClassSection;
+
   const [classSections, setClassSections] = useState([]);
   const [search, setSearch] = useState("");
   const [isLoading, setIsLoading] = useState(true);
@@ -269,13 +276,15 @@ function Classes() {
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={openAddModal}
-            className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-4 py-3 font-semibold text-white transition hover:bg-orange-400"
-          >
-            + Add Class Section
-          </button>
+          {canCreateClassSection ? (
+            <button
+              type="button"
+              onClick={openAddModal}
+              className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-4 py-3 font-semibold text-white transition hover:bg-orange-400"
+            >
+              + Add Class Section
+            </button>
+          ) : null}
         </div>
 
         <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-4">
@@ -333,7 +342,9 @@ function Classes() {
                   <th className="px-4 py-3 font-semibold">Class</th>
                   <th className="px-4 py-3 font-semibold">Section</th>
                   <th className="px-4 py-3 font-semibold">Created</th>
-                  <th className="px-4 py-3 font-semibold">Actions</th>
+                  {showClassActions ? (
+                    <th className="px-4 py-3 font-semibold">Actions</th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody>
@@ -356,7 +367,7 @@ function Classes() {
                   ))
                 ) : filteredClassSections.length === 0 ? (
                   <tr className="border-t border-slate-800">
-                    <td colSpan="4" className="px-4 py-10 text-center text-slate-300">
+                    <td colSpan={showClassActions ? 4 : 3} className="px-4 py-10 text-center text-slate-300">
                       No class sections found.
                     </td>
                   </tr>
@@ -373,24 +384,30 @@ function Classes() {
                       <td className="px-4 py-4">
                         {new Date(item.created_at).toLocaleString()}
                       </td>
-                      <td className="px-4 py-4">
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(item)}
-                            className="rounded-xl bg-amber-400 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-300"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget(item.id)}
-                            className="rounded-xl bg-rose-500 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-rose-400"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
+                      {showClassActions ? (
+                        <td className="px-4 py-4">
+                          <div className="flex flex-wrap gap-2">
+                            {canUpdateClassSection ? (
+                              <button
+                                type="button"
+                                onClick={() => openEditModal(item)}
+                                className="rounded-xl bg-amber-400 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-300"
+                              >
+                                Edit
+                              </button>
+                            ) : null}
+                            {canDeleteClassSection ? (
+                              <button
+                                type="button"
+                                onClick={() => setDeleteTarget(item.id)}
+                                className="rounded-xl bg-rose-500 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-rose-400"
+                              >
+                                Delete
+                              </button>
+                            ) : null}
+                          </div>
+                        </td>
+                      ) : null}
                     </tr>
                   ))
                 )}

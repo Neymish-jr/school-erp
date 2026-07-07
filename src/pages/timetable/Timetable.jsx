@@ -11,27 +11,12 @@ import {
 
 import DashboardLayout from "../../layouts/DashboardLayout";
 import API from "../../api/axios";
+import { usePermissions } from "../../hooks/usePermissions";
+import TeacherScheduleView from "./TeacherScheduleView";
+import { DAY_LABELS, DAY_ORDER } from "./timetableConstants";
 
 import { sortClassesNaturally } from "../../utils/sortClasses";
 import { isActiveStaffTeacher } from "../teachers/constants/teacherStatus";
-
-const DAY_ORDER = [
-  "monday",
-  "tuesday",
-  "wednesday",
-  "thursday",
-  "friday",
-  "saturday",
-];
-
-const DAY_LABELS = {
-  monday: "Monday",
-  tuesday: "Tuesday",
-  wednesday: "Wednesday",
-  thursday: "Thursday",
-  friday: "Friday",
-  saturday: "Saturday",
-};
 
 const emptyForm = {
   class_section_id: "",
@@ -53,7 +38,11 @@ const getAuthHeaders = () => {
     : {};
 };
 
-function Timetable() {
+function TimetableAdminView({ readOnly = false }) {
+  const { can } = usePermissions();
+  const canCreateTimetable = !readOnly && can("timetable.create");
+  const canDeleteTimetable = !readOnly && can("timetable.delete");
+
   const [timetables, setTimetables] =
     useState([]);
 
@@ -93,69 +82,65 @@ function Timetable() {
 
   const fetchTimetableData = async () => {
     setIsLoading(true);
+    setError("");
 
-    try {
-      const [
-        timetableResponse,
-        classSectionResponse,
-        subjectsResponse,
-        teachersResponse,
-      ] = await Promise.all([
+    const [timetableResult, classSectionResult, subjectsResult, teachersResult] =
+      await Promise.allSettled([
         API.get("/api/timetable", {
           headers: getAuthHeaders(),
         }),
-
         API.get("/api/class-sections", {
           headers: getAuthHeaders(),
         }),
-
         API.get("/api/subjects", {
           headers: getAuthHeaders(),
         }),
-
         API.get("/api/teachers", {
           headers: getAuthHeaders(),
         }),
       ]);
 
-      setTimetables(
-        timetableResponse?.data?.data || []
+    if (timetableResult.status === "fulfilled") {
+      setTimetables(timetableResult.value?.data?.data || []);
+    } else {
+      setTimetables([]);
+      setError(
+        timetableResult.reason?.response?.data?.message ||
+          "Failed to fetch timetable entries"
       );
+    }
 
-      const sortedClassSections =
-        sortClassesNaturally(
-          classSectionResponse?.data?.data || []
-        );
-
+    if (classSectionResult.status === "fulfilled") {
+      const sortedClassSections = sortClassesNaturally(
+        classSectionResult.value?.data?.data || []
+      );
       setClassSections(sortedClassSections);
+    } else {
+      setClassSections([]);
+    }
 
-      setSubjects(
-        subjectsResponse?.data?.data || []
-      );
+    if (subjectsResult.status === "fulfilled") {
+      setSubjects(subjectsResult.value?.data?.data || []);
+    } else {
+      setSubjects([]);
+    }
 
-      const teacherData =
-        teachersResponse?.data?.data;
-
+    if (teachersResult.status === "fulfilled") {
+      const teacherData = teachersResult.value?.data?.data;
       setTeachers(
-        Array.isArray(
-          teacherData?.teachers
-        )
+        Array.isArray(teacherData?.teachers)
           ? teacherData.teachers
-          : Array.isArray(
-              teacherData?.rows
-            )
+          : Array.isArray(teacherData?.rows)
           ? teacherData.rows
           : Array.isArray(teacherData)
           ? teacherData
           : []
       );
-    } catch (err) {
-      setError(
-        "Failed to fetch timetable data"
-      );
-    } finally {
-      setIsLoading(false);
+    } else {
+      setTeachers([]);
     }
+
+    setIsLoading(false);
   };
 
   useEffect(() => {
@@ -397,15 +382,17 @@ function Timetable() {
               </p>
             </div>
 
-            <button
-              onClick={() =>
-                setIsModalOpen(true)
-              }
-              className="inline-flex items-center gap-2 rounded-xl bg-orange-400 px-5 py-3 font-semibold text-white"
-            >
-              <Plus size={16} />
-              Add Timetable
-            </button>
+            {canCreateTimetable ? (
+              <button
+                onClick={() =>
+                  setIsModalOpen(true)
+                }
+                className="inline-flex items-center gap-2 rounded-xl bg-orange-400 px-5 py-3 font-semibold text-white"
+              >
+                <Plus size={16} />
+                Add Timetable
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -525,17 +512,19 @@ function Timetable() {
                               </p>
                             </div>
 
-                            <button
-                              onClick={() =>
-                                handleDelete(
-                                  entry.id
-                                )
-                              }
+                            {canDeleteTimetable ? (
+                              <button
+                                onClick={() =>
+                                  handleDelete(
+                                    entry.id
+                                  )
+                                }
 
-                              className="rounded-lg bg-rose-500/10 p-2 text-rose-200"
-                            >
-                              <Trash2 size={15} />
-                            </button>
+                                className="rounded-lg bg-rose-500/10 p-2 text-rose-200"
+                              >
+                                <Trash2 size={15} />
+                              </button>
+                            ) : null}
                           </div>
 
                           <div className="mt-4 flex gap-2 flex-wrap">
@@ -573,7 +562,7 @@ function Timetable() {
           </div>
         </div>
 
-        {isModalOpen && (
+        {isModalOpen && canCreateTimetable ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 px-4">
             <div className="max-h-[90vh] w-full max-w-3xl overflow-y-auto rounded-3xl border border-slate-800 bg-slate-900 p-6 shadow-2xl">
               <div className="flex items-start justify-between gap-4">
@@ -765,10 +754,24 @@ function Timetable() {
               </form>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
     </DashboardLayout>
   );
+}
+
+function Timetable() {
+  const { role, loading } = usePermissions();
+
+  if (!loading && role === "teacher") {
+    return <TeacherScheduleView />;
+  }
+
+  if (!loading && role === "office_staff") {
+    return <TimetableAdminView readOnly />;
+  }
+
+  return <TimetableAdminView />;
 }
 
 export default Timetable;

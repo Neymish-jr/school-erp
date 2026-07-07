@@ -1,10 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 
-import { isTeacherLegacy } from "../../constants/roles";
-
 import DashboardLayout from "../../layouts/DashboardLayout";
 
 import API from "../../api/axios";
+import { usePermissions } from "../../hooks/usePermissions";
 
 import { sortClassesNaturally } from "../../utils/sortClasses";
 
@@ -34,42 +33,6 @@ const EMPTY_RELIEVE_FORM = {
 
 
 
-const decodeToken = () => {
-
-  try {
-
-    const token = localStorage.getItem("token");
-
-
-
-    if (!token) {
-
-      return {};
-
-    }
-
-
-
-    const [, payload] = token.split(".");
-
-    const normalized = payload.replace(/-/g, "+").replace(/_/g, "/");
-
-    const decoded = JSON.parse(atob(normalized));
-
-
-
-    return decoded || {};
-
-  } catch (error) {
-
-    return {};
-
-  }
-
-};
-
-
-
 const formatDate = (value) => {
 
   if (!value) {
@@ -87,6 +50,13 @@ const formatDate = (value) => {
 
 
 function TeacherAssignments() {
+
+  const { can } = usePermissions();
+  const canAssign = can("teacher_subject_assignment.assign");
+  const canRelieve = can("teacher_subject_assignment.relieve");
+  const canReadAll = can("teacher_subject_assignment.read");
+  const useOwnAssignmentsEndpoint =
+    can("teacher_subject_assignment.read_own") && !canReadAll;
 
   const [assignments, setAssignments] = useState([]);
 
@@ -115,10 +85,6 @@ function TeacherAssignments() {
   const [isRelieving, setIsRelieving] = useState(false);
 
   const [formData, setFormData] = useState(EMPTY_FORM);
-
-  const [isTeacher, setIsTeacher] = useState(false);
-
-
 
   const getAuthHeaders = () => {
 
@@ -242,7 +208,7 @@ function TeacherAssignments() {
 
     try {
 
-      const endpoint = isTeacher
+      const endpoint = useOwnAssignmentsEndpoint
 
         ? "/api/teacher-subject-assignments/me"
 
@@ -288,18 +254,6 @@ function TeacherAssignments() {
 
   useEffect(() => {
 
-    const payload = decodeToken();
-
-
-
-    setIsTeacher(isTeacherLegacy(payload.role));
-
-  }, []);
-
-
-
-  useEffect(() => {
-
     void fetchDropdownData();
 
   }, []);
@@ -310,7 +264,7 @@ function TeacherAssignments() {
 
     void fetchAssignments();
 
-  }, [isTeacher, includeHistory]);
+  }, [useOwnAssignmentsEndpoint, includeHistory]);
 
 
 
@@ -644,7 +598,7 @@ function TeacherAssignments() {
 
 
 
-          {!isTeacher ? (
+          {canAssign ? (
 
             <div className="rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-3 text-sm text-slate-200">
 
@@ -754,7 +708,7 @@ function TeacherAssignments() {
 
 
 
-        {!isTeacher ? (
+        {canAssign ? (
 
           <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-4">
 
@@ -994,7 +948,7 @@ function TeacherAssignments() {
 
 
 
-          {!isTeacher ? (
+          {canReadAll ? (
 
             <label className="flex items-center gap-2 text-sm text-slate-300">
 
@@ -1202,7 +1156,7 @@ function TeacherAssignments() {
 
                       <td className="px-4 py-4">
 
-                        {!isTeacher && assignment.is_active ? (
+                        {canRelieve && assignment.is_active ? (
 
                           <button
 

@@ -27,7 +27,10 @@ import Activities from "../pages/activities/Activities";
 import ActivityDetail from "../pages/activities/ActivityDetail";
 import StockRegister from "../pages/stockRegister/StockRegister";
 import Quotations from "../pages/quotations/Quotations";
+import MyResponsibilities from "../pages/myResponsibilities/MyResponsibilities";
 import Unauthorized from "../pages/unauthorized/Unauthorized";
+import HelpCenter from "../pages/helpSupport/HelpCenter";
+import PlatformPlaceholder from "../pages/platform/PlatformPlaceholder";
 
 const guard = (page) => <ProtectedPermissionRoute>{page}</ProtectedPermissionRoute>;
 
@@ -78,11 +81,26 @@ function AppRoutes() {
           <Route path="/expenses" element={guard(<ComingSoon />)} />
           <Route path="/stock-register" element={guard(<StockRegister />)} />
           <Route path="/quotations" element={guard(<Quotations />)} />
+          <Route path="/my-responsibilities" element={guard(<MyResponsibilities />)} />
           <Route path="/activities" element={guard(<Activities />)} />
           <Route path="/activities/:id" element={guard(<ActivityDetail />)} />
+          <Route path="/help-support" element={guard(<HelpCenter />)} />
+
           <Route
-            path="/help-support"
-            element={guard(<div>Help & Support Section</div>)}
+            path="/schools"
+            element={guard(<PlatformPlaceholder module="schools" />)}
+          />
+          <Route
+            path="/users"
+            element={guard(<PlatformPlaceholder module="users" />)}
+          />
+          <Route
+            path="/permissions"
+            element={guard(<PlatformPlaceholder module="permissions" />)}
+          />
+          <Route
+            path="/system/tenant"
+            element={guard(<PlatformPlaceholder module="tenant" />)}
           />
         </Routes>
       </PermissionProvider>

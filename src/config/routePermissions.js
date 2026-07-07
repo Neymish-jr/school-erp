@@ -12,7 +12,7 @@ const ROUTE_PERMISSION_RULES = [
   { path: "/report-card", permissions: ["report_card.read"] },
   { path: "/timetable", permissions: ["timetable.read"] },
   { path: "/teachers", permissions: ["teacher.read"] },
-  { path: "/teacher-subjects", permissions: ["teacher_subject_assignment.read"] },
+  { path: "/teacher-subjects", permissions: ["teacher_subject_assignment.read", "teacher_subject_assignment.read_own"], mode: "any" },
   { path: "/staff-posts", permissions: ["staff_post.read"] },
   {
     path: "/school-charges",
@@ -31,6 +31,15 @@ const ROUTE_PERMISSION_RULES = [
   { path: "/stock-register", permissions: ["stock.register.read"] },
   { path: "/expenses", permissions: ["finance.expense_ledger.read"] },
   { path: "/help-support", permissions: ["dashboard.summary.read"] },
+  { path: "/my-responsibilities", permissions: ["dashboard.summary.read"] },
+  { path: "/schools", permissions: ["system.school.read"] },
+  { path: "/users", permissions: ["user.register"] },
+  {
+    path: "/permissions",
+    permissions: ["system.permission_override.grant", "system.permission_override.revoke"],
+    mode: "any",
+  },
+  { path: "/system/tenant", permissions: ["system.tenant.switch"] },
 ];
 
 export const getRoutePermissionRule = (pathname) => {

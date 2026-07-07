@@ -11,6 +11,7 @@ import {
   updateBudgetSubHead,
   updateBudgetSubHeadStatus,
 } from "../../../api/finance";
+import { usePermissions } from "../../../hooks/usePermissions";
 import {
   PageHeader,
   MetricGrid,
@@ -47,6 +48,24 @@ const StatusBadge = ({ isActive }) =>
   isActive ? <Badge variant="emerald">Active</Badge> : <Badge variant="default">Inactive</Badge>;
 
 function BudgetStructure() {
+  const { can, canAny } = usePermissions();
+  const canCreateHead = can("finance.budget_head.create");
+  const canCreateSubHead = can("finance.budget_sub_head.create");
+  const canUpdateHead = can("finance.budget_head.update");
+  const canUpdateSubHead = can("finance.budget_sub_head.update");
+  const canActivateHead = can("finance.budget_head.activate");
+  const canActivateSubHead = can("finance.budget_sub_head.activate");
+  const showHeadActions = canUpdateHead || canActivateHead;
+  const showSubHeadActions = canUpdateSubHead || canActivateSubHead;
+  const isReadOnly = !canAny([
+    "finance.budget_head.create",
+    "finance.budget_head.update",
+    "finance.budget_head.activate",
+    "finance.budget_sub_head.create",
+    "finance.budget_sub_head.update",
+    "finance.budget_sub_head.activate",
+  ]);
+
   const [budgetHeads, setBudgetHeads] = useState([]);
   const [subHeads, setSubHeads] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -245,18 +264,32 @@ function BudgetStructure() {
       <div className="space-y-6">
         <PageHeader
           title="Budget Structure"
-          description="State-level budget heads and sub heads maintained by Super Admin. Schools consume this structure through allocations."
+          description={
+            isReadOnly
+              ? "Read-only view of budget heads and sub heads. Schools consume this structure through allocations."
+              : "State-level budget heads and sub heads maintained by Super Admin. Schools consume this structure through allocations."
+          }
           actions={
-            <div className="flex flex-wrap gap-2">
-              <Button variant="secondary" onClick={openCreateSubHead}>
-                Add Sub Head
-              </Button>
-              <Button variant="primary" onClick={openCreateHead}>
-                Add Budget Head
-              </Button>
-            </div>
+            canCreateSubHead || canCreateHead ? (
+              <div className="flex flex-wrap gap-2">
+                {canCreateSubHead ? (
+                  <Button variant="secondary" onClick={openCreateSubHead}>
+                    Add Sub Head
+                  </Button>
+                ) : null}
+                {canCreateHead ? (
+                  <Button variant="primary" onClick={openCreateHead}>
+                    Add Budget Head
+                  </Button>
+                ) : null}
+              </div>
+            ) : null
           }
         />
+
+        {isReadOnly ? (
+          <Alert variant="info">You have read-only access to the budget structure.</Alert>
+        ) : null}
 
         {error ? <Alert variant="error">{error}</Alert> : null}
 
@@ -297,14 +330,16 @@ function BudgetStructure() {
                 <DataTableHeaderCell>Head Name</DataTableHeaderCell>
                 <DataTableHeaderCell>Remarks</DataTableHeaderCell>
                 <DataTableHeaderCell>Status</DataTableHeaderCell>
-                <DataTableHeaderCell align="right">Actions</DataTableHeaderCell>
+                {showHeadActions ? (
+                  <DataTableHeaderCell align="right">Actions</DataTableHeaderCell>
+                ) : null}
               </DataTableRow>
             </DataTableHead>
             <DataTableBody>
               {loading ? (
-                <DataTableSkeleton columns={5} rows={3} />
+                <DataTableSkeleton columns={showHeadActions ? 5 : 4} rows={3} />
               ) : budgetHeads.length === 0 ? (
-                <DataTableEmpty colSpan={5} message="No budget heads found." />
+                <DataTableEmpty colSpan={showHeadActions ? 5 : 4} message="No budget heads found." />
               ) : (
                 budgetHeads.map((head) => (
                   <DataTableRow
@@ -331,20 +366,26 @@ function BudgetStructure() {
                     <DataTableCell>
                       <StatusBadge isActive={head.is_active} />
                     </DataTableCell>
-                    <DataTableCell align="right">
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <Button variant="ghost" onClick={() => openEditHead(head)}>
-                          Edit
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          disabled={statusTarget === `head-${head.id}`}
-                          onClick={() => toggleHeadStatus(head)}
-                        >
-                          {head.is_active ? "Deactivate" : "Activate"}
-                        </Button>
-                      </div>
-                    </DataTableCell>
+                    {showHeadActions ? (
+                      <DataTableCell align="right">
+                        <div className="flex flex-wrap justify-end gap-2">
+                          {canUpdateHead ? (
+                            <Button variant="ghost" onClick={() => openEditHead(head)}>
+                              Edit
+                            </Button>
+                          ) : null}
+                          {canActivateHead ? (
+                            <Button
+                              variant="secondary"
+                              disabled={statusTarget === `head-${head.id}`}
+                              onClick={() => toggleHeadStatus(head)}
+                            >
+                              {head.is_active ? "Deactivate" : "Activate"}
+                            </Button>
+                          ) : null}
+                        </div>
+                      </DataTableCell>
+                    ) : null}
                   </DataTableRow>
                 ))
               )}
@@ -368,14 +409,19 @@ function BudgetStructure() {
                 <DataTableHeaderCell>Parent Head</DataTableHeaderCell>
                 <DataTableHeaderCell>Remarks</DataTableHeaderCell>
                 <DataTableHeaderCell>Status</DataTableHeaderCell>
-                <DataTableHeaderCell align="right">Actions</DataTableHeaderCell>
+                {showSubHeadActions ? (
+                  <DataTableHeaderCell align="right">Actions</DataTableHeaderCell>
+                ) : null}
               </DataTableRow>
             </DataTableHead>
             <DataTableBody>
               {loading ? (
-                <DataTableSkeleton columns={6} rows={4} />
+                <DataTableSkeleton columns={showSubHeadActions ? 6 : 5} rows={4} />
               ) : visibleSubHeads.length === 0 ? (
-                <DataTableEmpty colSpan={6} message="No budget sub heads found." />
+                <DataTableEmpty
+                  colSpan={showSubHeadActions ? 6 : 5}
+                  message="No budget sub heads found."
+                />
               ) : (
                 visibleSubHeads.map((subHead) => (
                   <DataTableRow key={subHead.id}>
@@ -390,20 +436,26 @@ function BudgetStructure() {
                     <DataTableCell>
                       <StatusBadge isActive={subHead.is_active} />
                     </DataTableCell>
-                    <DataTableCell align="right">
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <Button variant="ghost" onClick={() => openEditSubHead(subHead)}>
-                          Edit
-                        </Button>
-                        <Button
-                          variant="secondary"
-                          disabled={statusTarget === `sub-${subHead.id}`}
-                          onClick={() => toggleSubStatus(subHead)}
-                        >
-                          {subHead.is_active ? "Deactivate" : "Activate"}
-                        </Button>
-                      </div>
-                    </DataTableCell>
+                    {showSubHeadActions ? (
+                      <DataTableCell align="right">
+                        <div className="flex flex-wrap justify-end gap-2">
+                          {canUpdateSubHead ? (
+                            <Button variant="ghost" onClick={() => openEditSubHead(subHead)}>
+                              Edit
+                            </Button>
+                          ) : null}
+                          {canActivateSubHead ? (
+                            <Button
+                              variant="secondary"
+                              disabled={statusTarget === `sub-${subHead.id}`}
+                              onClick={() => toggleSubStatus(subHead)}
+                            >
+                              {subHead.is_active ? "Deactivate" : "Activate"}
+                            </Button>
+                          ) : null}
+                        </div>
+                      </DataTableCell>
+                    ) : null}
                   </DataTableRow>
                 ))
               )}

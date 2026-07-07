@@ -69,6 +69,9 @@ const enrichStaffPostsWithVacancy = (posts, assignments) => {
 
   assignments.forEach((assignment) => {
     if (!assignment.staff_post_id) return;
+    if (assignment.teacher_status && assignment.teacher_status !== "active") {
+      return;
+    }
     filledCountByPostId[assignment.staff_post_id] =
       (filledCountByPostId[assignment.staff_post_id] || 0) + 1;
   });
@@ -151,16 +154,25 @@ const StaffPosts = () => {
     sanctioned_count: 0,
   });
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
   const [page, setPage] = useState(1);
 
   useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [search]);
+
+  useEffect(() => {
     fetchStaffPosts();
-  }, [search, filterCategory]);
+  }, [debouncedSearch, filterCategory]);
 
   useEffect(() => {
     setPage(1);
-  }, [search, filterCategory]);
+  }, [debouncedSearch, filterCategory]);
 
   const fetchStaffPosts = async () => {
     setLoading(true);
@@ -169,7 +181,7 @@ const StaffPosts = () => {
 
     try {
       const [allPosts, assignmentsResult] = await Promise.all([
-        fetchAllStaffPosts(search, filterCategory),
+        fetchAllStaffPosts(debouncedSearch, filterCategory),
         API.get("/api/teacher-staff-post-assignments", {
           headers: getAuthHeaders(),
           params: { is_active: "true" },

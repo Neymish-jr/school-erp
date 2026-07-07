@@ -145,25 +145,6 @@ function TeacherServiceHistoryTab({ teacherId }) {
             ),
           ]);
 
-        console.log("[SERVICE BOOK API]", serviceBookResponse);
-
-        console.log("[SERVICE BOOK DATA]", serviceBookResponse?.data);
-
-        console.log(
-          "[SERVICE BOOK INNER DATA]",
-          serviceBookResponse?.data?.data
-        );
-
-        console.log(
-          "[SERVICE BOOK TIMELINE]",
-          serviceBookResponse?.data?.data?.timeline
-        );
-
-        console.log(
-          "[SERVICE BOOK TIMELINE LENGTH]",
-          serviceBookResponse?.data?.data?.timeline?.length ?? "missing"
-        );
-
         setServiceBook(serviceBookResponse?.data?.data || null);
 
         const adminCharges = adminChargesResponse?.data?.data || [];
@@ -183,7 +164,7 @@ function TeacherServiceHistoryTab({ teacherId }) {
         setCurrentDesignation(NOT_ASSIGNED_DESIGNATION);
         setError(
           err?.response?.data?.message ||
-            "Unable to load service history. Run the backfill script if this is a new installation."
+            "Unable to load service history."
         );
       } finally {
         setIsLoading(false);
@@ -194,14 +175,6 @@ function TeacherServiceHistoryTab({ teacherId }) {
       fetchServiceHistoryData();
     }
   }, [teacherId]);
-
-  useEffect(() => {
-    console.log("[SERVICE BOOK REACT STATE]", serviceBook);
-    console.log(
-      "[SERVICE BOOK REACT TIMELINE LENGTH]",
-      serviceBook?.timeline?.length ?? "missing"
-    );
-  }, [serviceBook]);
 
   const timeline = serviceBook?.timeline || [];
   const teacherStatus = serviceBook?.teacher?.status || serviceBook?.tenure?.teacher_status || "active";

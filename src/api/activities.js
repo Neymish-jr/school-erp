@@ -32,6 +32,17 @@ export const createActivity = (payload) =>
     headers: getAuthHeaders(),
   });
 
+export const updateActivity = (id, payload) =>
+  API.put(`/api/activities/${id}`, payload, {
+    headers: getAuthHeaders(),
+  });
+
+export const fetchActivityAllocationAvailability = (allocationId, params = {}) =>
+  API.get(`/api/activities/allocation/${allocationId}/budget-availability`, {
+    headers: getAuthHeaders(),
+    params,
+  });
+
 export const submitActivity = (id) =>
   API.put(`/api/activities/${id}/submit`, {}, {
     headers: getAuthHeaders(),

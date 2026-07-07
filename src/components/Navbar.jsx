@@ -1,8 +1,14 @@
 import { Icon } from "@iconify/react";
+import { useLocation } from "react-router-dom";
 import { useSidebar } from "../context/SidebarContext";
+import { getPageTitle } from "../config/pageTitles";
+import { usePermissions } from "../hooks/usePermissions";
 
 function Navbar() {
   const { isCollapsed, toggleCollapsed, toggleMobile } = useSidebar();
+  const { pathname } = useLocation();
+  const { role } = usePermissions();
+  const pageTitle = getPageTitle(pathname, role);
 
   return (
     <div className="flex h-16 items-center justify-between gap-4 border-b border-slate-800 bg-slate-900 px-4 text-white sm:px-6">
@@ -28,7 +34,7 @@ function Navbar() {
           />
         </button>
 
-        <h1 className="text-lg font-semibold sm:text-xl">Dashboard</h1>
+        <h1 className="truncate text-lg font-semibold sm:text-xl">{pageTitle}</h1>
       </div>
 
       <button

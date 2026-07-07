@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import DashboardLayout from "../../layouts/DashboardLayout";
 import API from "../../api/axios";
+import { usePermissions } from "../../hooks/usePermissions";
+import { calculatePercentage, getResultStatus } from "../../constants/assessmentResults";
 
 const emptyForm = {
   student_id: "",
@@ -11,6 +13,9 @@ const emptyForm = {
 };
 
 function Results() {
+  const { can } = usePermissions();
+  const canManageResults = can("result.create") && can("mark.create");
+
   const [students, setStudents] = useState([]);
   const [subjects, setSubjects] = useState([]);
   const [results, setResults] = useState([]);
@@ -150,11 +155,11 @@ function Results() {
       };
     }
 
-    const percentage = Math.max(0, Math.min(100, (obtained / total) * 100));
+    const percentage = calculatePercentage(obtained, total);
 
     return {
       percentage: Number(percentage.toFixed(2)),
-      status: percentage >= 40 ? "Pass" : "Fail",
+      status: getResultStatus(percentage),
     };
   }, [formData]);
 
@@ -257,7 +262,9 @@ function Results() {
               Results & Marks
             </h1>
             <p className="mt-2 max-w-2xl text-slate-300">
-              Add exam results, review performance instantly, and track pass/fail trends from one dashboard.
+              {canManageResults
+                ? "Add exam results, review performance instantly, and track pass/fail trends from one dashboard."
+                : "Review exam results, performance trends, and pass/fail summaries across the school."}
             </p>
           </div>
         </div>
@@ -274,18 +281,22 @@ function Results() {
           </div>
         ) : null}
 
-        <div className="grid gap-4 xl:grid-cols-[1.1fr,0.9fr]">
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5">
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-semibold text-white">Add Exam Result</h2>
-                <p className="mt-1 text-sm text-slate-300">
-                  Enter a student result and let the system calculate percentage and status automatically.
-                </p>
+        <div
+          className={`grid gap-4 ${canManageResults ? "xl:grid-cols-[1.1fr,0.9fr]" : ""}`}
+        >
+          {canManageResults ? (
+            <div className="rounded-3xl border border-slate-800 bg-slate-900/80 p-5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold text-white">Add Exam Result</h2>
+                  <p className="mt-1 text-sm text-slate-300">
+                    Enter a student result and let the system calculate percentage and status
+                    automatically.
+                  </p>
+                </div>
               </div>
-            </div>
 
-            <form onSubmit={handleSubmit} className="mt-5 grid gap-4 md:grid-cols-2">
+              <form onSubmit={handleSubmit} className="mt-5 grid gap-4 md:grid-cols-2">
               <label className="block text-sm text-slate-200">
                 <span className="mb-2 block">Student</span>
                 <select
@@ -385,8 +396,9 @@ function Results() {
                   {isSaving ? "Saving..." : "Save Result"}
                 </button>
               </div>
-            </form>
-          </div>
+              </form>
+            </div>
+          ) : null}
 
           <div className="space-y-4">
             <div className="grid gap-4 sm:grid-cols-2">

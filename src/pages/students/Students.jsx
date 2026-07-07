@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import DashboardLayout from "../../layouts/DashboardLayout";
 import API from "../../api/axios";
+import { DataToolbar } from "../../components/dataToolbar";
+import { usePermissions } from "../../hooks/usePermissions";
+import { downloadBlob } from "../../utils/downloadBlob";
 
 const emptyForm = {
   name: "",
@@ -11,6 +14,11 @@ const emptyForm = {
 };
 
 function Students() {
+  const { can } = usePermissions();
+  const canUpdateStudent = can("student.update");
+  const canDeleteStudent = can("student.delete");
+  const showStudentActions = canUpdateStudent || canDeleteStudent;
+
   const [students, setStudents] = useState([]);
   const [classSections, setClassSections] = useState([]);
   const [search, setSearch] = useState("");
@@ -26,8 +34,9 @@ function Students() {
   const [formData, setFormData] = useState(emptyForm);
   const [deleteTarget, setDeleteTarget] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [importFile, setImportFile] = useState(null);
   const [isImporting, setIsImporting] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [isDownloadingTemplate, setIsDownloadingTemplate] = useState(false);
 
   const getAuthHeaders = () => {
     const token = localStorage.getItem("token");
@@ -39,8 +48,8 @@ function Students() {
       : {};
   };
 
-  const handleImport = async () => {
-    if (!importFile) {
+  const handleImport = async (file) => {
+    if (!file) {
       alert("Please select an Excel file");
       return;
     }
@@ -48,35 +57,57 @@ function Students() {
     try {
       setIsImporting(true);
 
-      const formData = new FormData();
+      const uploadData = new FormData();
+      uploadData.append("file", file);
 
-      formData.append("file", importFile);
-
-     const response = await API.post(
-      "/api/student-import",
-      formData,
-      {
+      const response = await API.post("/api/student-import", uploadData, {
         headers: {
           "Content-Type": "multipart/form-data",
         },
-      }
-    );
+      });
 
-    alert(
-      `${response.data.imported} students imported successfully`
-    );
-
-      alert(
-        `${response.data.imported} students imported successfully`
-      );
+      alert(`${response.data.imported} students imported successfully`);
 
       fetchStudents();
     } catch (error) {
       console.error(error);
-
       alert("Import failed");
     } finally {
       setIsImporting(false);
+    }
+  };
+
+  const handleExportStudents = async () => {
+    setIsExporting(true);
+
+    try {
+      const response = await API.get("/api/student-import/export", {
+        headers: getAuthHeaders(),
+        responseType: "blob",
+      });
+      downloadBlob(response.data, "students_export.xlsx");
+    } catch (exportError) {
+      console.error(exportError);
+      alert("Export failed");
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    setIsDownloadingTemplate(true);
+
+    try {
+      const response = await API.get("/api/student-import/template", {
+        headers: getAuthHeaders(),
+        responseType: "blob",
+      });
+      downloadBlob(response.data, "students_template.xlsx");
+    } catch (templateError) {
+      console.error(templateError);
+      alert("Failed to download import template");
+    } finally {
+      setIsDownloadingTemplate(false);
     }
   };
 
@@ -289,31 +320,33 @@ const fetchClassSections = async () => {
             </p>
           </div>
 
-          <button
-            onClick={openAddModal}
-            className="inline-flex items-center justify-center rounded-2xl bg-orange-500 px-4 py-3 font-semibold text-white transition hover:bg-orange-400"
-          >
-            + Add Student
-          </button>
-        </div>
-
-        <div className="flex gap-3">
-          <input
-            type="file"
-            accept=".xlsx,.xls"
-            onChange={(e) =>
-              setImportFile(e.target.files[0])
-            }
+          <DataToolbar
+            add={{
+              label: "+ Add Student",
+              onClick: openAddModal,
+              permission: "student.create",
+            }}
+            import={{
+              label: "Import Excel",
+              accept: ".xlsx,.xls",
+              onImport: handleImport,
+              loading: isImporting,
+              loadingLabel: "Importing...",
+              permission: "student.import.execute",
+            }}
+            export={{
+              label: "Export Students",
+              onClick: handleExportStudents,
+              loading: isExporting,
+              permission: "student.export.execute",
+            }}
+            template={{
+              label: "Download Import Template",
+              onClick: handleDownloadTemplate,
+              loading: isDownloadingTemplate,
+              permission: "student.import.template",
+            }}
           />
-
-          <button
-            onClick={handleImport}
-            disabled={isImporting}
-          >
-            {isImporting
-              ? "Importing..."
-              : "Import Excel"}
-          </button>
         </div>
 
         <div className="grid gap-4 md:grid-cols-3">
@@ -378,7 +411,9 @@ const fetchClassSections = async () => {
                   <th className="px-4 py-3 font-semibold">Category</th>
                   <th className="px-4 py-3 font-semibold">Class</th>
                   <th className="px-4 py-3 font-semibold">Section</th>
-                  <th className="px-4 py-3 font-semibold">Actions</th>
+                  {showStudentActions ? (
+                    <th className="px-4 py-3 font-semibold">Actions</th>
+                  ) : null}
                 </tr>
               </thead>
               <tbody>
@@ -407,7 +442,7 @@ const fetchClassSections = async () => {
                   ))
                 ) : students.length === 0 ? (
                   <tr className="border-t border-slate-800">
-                    <td colSpan="6" className="px-4 py-10 text-center text-slate-300">
+                    <td colSpan={showStudentActions ? 6 : 5} className="px-4 py-10 text-center text-slate-300">
                       No students found for the current search.
                     </td>
                   </tr>
@@ -422,24 +457,30 @@ const fetchClassSections = async () => {
                       <td className="px-4 py-4">{student.category || "—"}</td>
                       <td className="px-4 py-4">{student.student_class || "—"}</td>
                       <td className="px-4 py-4">{student.section || "—"}</td>
-                      <td className="px-4 py-4">
-                        <div className="flex flex-wrap gap-2">
-                          <button
-                            type="button"
-                            onClick={() => openEditModal(student)}
-                            className="rounded-xl bg-amber-400 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-300"
-                          >
-                            Edit
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setDeleteTarget(student.id)}
-                            className="rounded-xl bg-rose-500 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-rose-400"
-                          >
-                            Delete
-                          </button>
-                        </div>
-                      </td>
+                      {showStudentActions ? (
+                        <td className="px-4 py-4">
+                          <div className="flex flex-wrap gap-2">
+                            {canUpdateStudent ? (
+                              <button
+                                type="button"
+                                onClick={() => openEditModal(student)}
+                                className="rounded-xl bg-amber-400 px-3 py-1.5 text-sm font-semibold text-slate-950 transition hover:bg-amber-300"
+                              >
+                                Edit
+                              </button>
+                            ) : null}
+                            {canDeleteStudent ? (
+                              <button
+                                type="button"
+                                onClick={() => setDeleteTarget(student.id)}
+                                className="rounded-xl bg-rose-500 px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-rose-400"
+                              >
+                                Delete
+                              </button>
+                            ) : null}
+                          </div>
+                        </td>
+                      ) : null}
                     </tr>
                   ))
                 )}
